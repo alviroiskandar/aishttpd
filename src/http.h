@@ -37,6 +37,7 @@ int ais_http_ctx_init(struct ais_http_ctx *ctx, const struct ais_http_srv_iarg *
 int ais_http_ctx_run(struct ais_http_ctx *ctx);
 void ais_http_ctx_free(struct ais_http_ctx *ctx);
 void ais_http_ctx_stop(struct ais_http_ctx *ctx);
+const char *ais_http_get_method_name(int m);
 
 static inline void ais_http_req_set_route_cb(struct ais_http_req *req, ais_http_route_cb_t cb)
 {

@@ -36,7 +36,7 @@ static void store_str_ip(struct ais_sock_addr *addr, char *buf, size_t buf_len)
 	}
 }
 
-static const char *get_method_name(int m)
+const char *ais_http_get_method_name(int m)
 {
 	switch (m) {
 	case GWNET_HTTP_METHOD_GET:
@@ -107,7 +107,7 @@ static int handle_route(struct ais_sock_tcp_cli *cli, struct ais_http_req *req)
 
 	printf("HTTP Request from %s: %s %s HTTP/1.%d\n",
 		req->addr,
-		get_method_name(req->hdr_req.method),
+		ais_http_get_method_name(req->hdr_req.method),
 		uri,
 		req->hdr_req.version == GWNET_HTTP_VER_1_1 ? 1 : 0);
 

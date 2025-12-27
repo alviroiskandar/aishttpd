@@ -22,5 +22,6 @@ struct ais_http_ctx {
 int ais_http_ctx_init(struct ais_http_ctx *ctx, const struct ais_sock_tcp_srv_iarg *iarg);
 int ais_http_ctx_run(struct ais_http_ctx *ctx);
 void ais_http_ctx_free(struct ais_http_ctx *ctx);
+void ais_http_ctx_stop(struct ais_http_ctx *ctx);
 
 #endif /* #ifndef AISHTTPD_HTTP_H */

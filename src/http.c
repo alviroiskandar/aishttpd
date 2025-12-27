@@ -214,3 +214,8 @@ void ais_http_ctx_free(struct ais_http_ctx *ctx)
 {
 	ais_sock_tcp_srv_free(&ctx->tcp_srv);
 }
+
+void ais_http_ctx_stop(struct ais_http_ctx *ctx)
+{
+	ais_sock_tcp_srv_stop(&ctx->tcp_srv);
+}

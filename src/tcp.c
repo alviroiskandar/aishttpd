@@ -92,8 +92,8 @@ static void ais_sock_tcp_cli_free(struct ais_sock_tcp_cli *cli)
 	if (cli->fd >= 0)
 		close(cli->fd);
 
-	free(cli->rx_buf.buf);
-	free(cli->tx_buf.buf);
+	ais_buf_free(&cli->rx_buf);
+	ais_buf_free(&cli->tx_buf);
 	free(cli);
 }
 
@@ -154,10 +154,10 @@ static int __handle_event_tcp_srv(struct ais_sock_tcp_srv *srv)
 	/*
 	 * TODO(viro_ssfs): Make the buffer size configurable from the caller.
 	 */
-	r = ais_sock_buf_init(&cli->rx_buf, 8192);
+	r = ais_buf_init(&cli->rx_buf, 8192);
 	if (r < 0)
 		goto out_err_free_cli;
-	r = ais_sock_buf_init(&cli->tx_buf, 8192);
+	r = ais_buf_init(&cli->tx_buf, 8192);
 	if (r < 0)
 		goto out_err_free_cli;
 
@@ -214,17 +214,18 @@ static int handle_event_tcp_srv(struct ais_sock_tcp_srv *srv, struct epoll_event
 
 static int handle_event_tcp_cli_recv(struct ais_sock_tcp_cli *cli)
 {
+	struct ais_buf *rxb = &cli->rx_buf;
 	ssize_t recv_ret;
 	size_t recv_len;
 	void *recv_buf;
 
-	recv_len = cli->rx_buf.len - cli->rx_buf.off;
-	recv_buf = cli->rx_buf.buf + cli->rx_buf.off;
+	recv_len = rxb->cap - rxb->len;
+	recv_buf = &rxb->buf[rxb->len];
 	recv_ret = recv(cli->fd, recv_buf, recv_len, MSG_DONTWAIT);
 	if (recv_ret < 0) {
 		int err = -errno;
 		if (err == -EAGAIN || err == -EINTR) {
-			if (cli->rx_buf.off > 0)
+			if (cli->rx_buf.len > 0)
 				goto invoke_cb;
 			return 0;
 		}
@@ -237,16 +238,13 @@ static int handle_event_tcp_cli_recv(struct ais_sock_tcp_cli *cli)
 		return -EIO;
 	}
 
-	cli->rx_buf.off += recv_ret;
+	cli->rx_buf.len += recv_ret;
 
 invoke_cb:
 	if (cli->cb_rx) {
 		recv_ret = cli->cb_rx(cli);
-		if (recv_ret < 0)
+		if (recv_ret < 0 && recv_ret != -EAGAIN)
 			return recv_ret;
-
-		assert((size_t)recv_ret <= cli->rx_buf.off);
-		ais_sock_buf_advance(&cli->rx_buf, (uint16_t)recv_ret);
 	}
 
 	return 0;
@@ -254,11 +252,11 @@ invoke_cb:
 
 static int handle_event_tcp_cli_send(struct ais_sock_tcp_cli *cli)
 {
-	ssize_t send_ret;
+	ssize_t send_ret, r = 0;
 	size_t send_len;
 	void *send_buf;
 
-	send_len = cli->tx_buf.off;
+	send_len = cli->tx_buf.len;
 	send_buf = cli->tx_buf.buf;
 	send_ret = send(cli->fd, send_buf, send_len, MSG_DONTWAIT);
 	if (send_ret < 0) {
@@ -269,12 +267,12 @@ static int handle_event_tcp_cli_send(struct ais_sock_tcp_cli *cli)
 		return err;
 	}
 
-	assert((size_t)send_ret <= cli->tx_buf.off);
-	ais_sock_buf_advance(&cli->tx_buf, (uint16_t)send_ret);
+	assert((size_t)send_ret <= cli->tx_buf.len);
 	if (cli->cb_tx)
-		cli->cb_tx(cli, send_ret);
+		r = cli->cb_tx(cli, send_ret);
 
-	return 0;
+	ais_buf_soft_advance(&cli->tx_buf, (size_t)send_ret);
+	return (r < 0) ? r : 0;
 }
 
 static int adjust_epoll_events(struct ais_sock_tcp_srv *srv, struct ais_sock_tcp_cli *cli)
@@ -291,12 +289,12 @@ static int adjust_epoll_events(struct ais_sock_tcp_srv *srv, struct ais_sock_tcp
 	 * disabled, but there's data to send, enable it.
 	 */
 	if (cli->ep_mask & EPOLLOUT) {
-		if (cli->tx_buf.off == 0) {
+		if (cli->tx_buf.len == 0) {
 			need_mod = true;
 			cli->ep_mask &= ~EPOLLOUT;
 		}
 	} else {
-		if (cli->tx_buf.off > 0) {
+		if (cli->tx_buf.len > 0) {
 			need_mod = true;
 			cli->ep_mask |= EPOLLOUT;
 		}
@@ -358,7 +356,7 @@ static int handle_event_tcp_cli(struct ais_sock_tcp_srv *srv, struct epoll_event
 		 * If so, enable EPOLLOUT event locally to notify
 		 * the code below to handle sending data.
 		 */
-		if (cli->tx_buf.off > 0)
+		if (cli->tx_buf.len > 0)
 			ev->events |= EPOLLOUT;
 	}
 
@@ -500,71 +498,4 @@ void ais_sock_tcp_srv_stop(struct ais_sock_tcp_srv *srv)
 {
 	srv->should_stop = true;
 	eventfd_write(srv->ev_fd, 1);
-}
-
-int ais_sock_buf_init(struct ais_sock_buf *sb, uint16_t size)
-{
-	sb->buf = malloc(size + 1);
-	if (!sb->buf)
-		return -ENOMEM;
-
-	sb->buf[0] = 0;
-	sb->len = size;
-	sb->off = 0;
-	return 0;
-}
-
-int ais_sock_buf_append(struct ais_sock_buf *sb, const void *data, uint16_t len)
-{
-	if (sb->off + len > sb->len)
-		return -ENOSPC;
-
-	memcpy(sb->buf + sb->off, data, len);
-	sb->off += len;
-	sb->buf[sb->off] = 0;
-	return 0;
-}
-
-int ais_sock_buf_append_grow(struct ais_sock_buf *sb, const void *data, uint16_t len)
-{
-	if (sb->off + len > sb->len) {
-		uint16_t new_len = sb->len * 2;
-		char *new_buf;
-
-		while (sb->off + len > new_len)
-			new_len *= 2;
-
-		new_buf = realloc(sb->buf, new_len + 1);
-		if (!new_buf)
-			return -ENOMEM;
-
-		sb->buf = new_buf;
-		sb->len = new_len;
-	}
-
-	memcpy(sb->buf + sb->off, data, len);
-	sb->off += len;
-	sb->buf[sb->off] = 0;
-	return 0;
-}
-
-void ais_sock_buf_free(struct ais_sock_buf *sb)
-{
-	if (!sb || !sb->buf)
-		return;
-
-	free(sb->buf);
-	memset(sb, 0, sizeof(*sb));
-}
-
-void ais_sock_buf_advance(struct ais_sock_buf *sb, uint16_t len)
-{
-	if (len >= sb->off) {
-		sb->off = 0;
-		sb->buf[0] = 0;
-	} else {
-		memmove(sb->buf, sb->buf + len, sb->off - len);
-		sb->off -= len;
-		sb->buf[sb->off] = 0;
-	}
 }

@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <signal.h>
+#include <assert.h>
 
 /*
  * TODO(viro_ssfs):
@@ -62,112 +63,329 @@ const char *ais_http_get_method_name(int m)
 	}
 }
 
-static int handle_route_index(struct ais_sock_tcp_cli *cli)
+static const char *translate_http_code(uint16_t code)
 {
-	static const char res[] =
-		"HTTP/1.1 200 OK\r\n"
-		"Content-Type: text/plain\r\n"
-		"Content-Length: 24\r\n"
-		"\r\n"
-		"Welcome to HTTP server!\n";
-	size_t len = sizeof(res) - 1;
-
-	return ais_sock_buf_append_grow(&cli->tx_buf, res, len);
+	switch (code) {
+	case 100: return "Continue";
+	case 101: return "Switching Protocols";
+	case 102: return "Processing";
+	case 103: return "Early Hints";
+	case 200: return "OK";
+	case 201: return "Created";
+	case 202: return "Accepted";
+	case 203: return "Non-Authoritative Information";
+	case 204: return "No Content";
+	case 205: return "Reset Content";
+	case 206: return "Partial Content";
+	case 207: return "Multi-Status";
+	case 208: return "Already Reported";
+	case 226: return "IM Used";
+	case 300: return "Multiple Choices";
+	case 301: return "Moved Permanently";
+	case 302: return "Found";
+	case 303: return "See Other";
+	case 304: return "Not Modified";
+	case 305: return "Use Proxy";
+	case 307: return "Temporary Redirect";
+	case 308: return "Permanent Redirect";
+	case 400: return "Bad Request";
+	case 401: return "Unauthorized";
+	case 402: return "Payment Required";
+	case 403: return "Forbidden";
+	case 404: return "Not Found";
+	case 405: return "Method Not Allowed";
+	case 406: return "Not Acceptable";
+	case 407: return "Proxy Authentication Required";
+	case 408: return "Request Timeout";
+	case 409: return "Conflict";
+	case 410: return "Gone";
+	case 411: return "Length Required";
+	case 412: return "Precondition Failed";
+	case 413: return "Payload Too Large";
+	case 414: return "URI Too Long";
+	case 415: return "Unsupported Media Type";
+	case 416: return "Range Not Satisfiable";
+	case 417: return "Expectation Failed";
+	case 418: return "I'm a teapot";
+	case 421: return "Misdirected Request";
+	case 422: return "Unprocessable Entity";
+	case 423: return "Locked";
+	case 424: return "Failed Dependency";
+	case 425: return "Too Early";
+	case 426: return "Upgrade Required";
+	case 428: return "Precondition Required";
+	case 429: return "Too Many Requests";
+	case 431: return "Request Header Fields Too Large";
+	case 451: return "Unavailable For Legal Reasons";
+	case 500: return "Internal Server Error";
+	case 501: return "Not Implemented";
+	case 502: return "Bad Gateway";
+	case 503: return "Service Unavailable";
+	case 504: return "Gateway Timeout";
+	case 505: return "HTTP Version Not Supported";
+	case 506: return "Variant Also Negotiates";
+	case 507: return "Insufficient Storage";
+	case 508: return "Loop Detected";
+	case 510: return "Not Extended";
+	case 511: return "Network Authentication Required";
+	default: return "Unknown";
+	}
 }
 
-static int handle_route_hello(struct ais_sock_tcp_cli *cli)
+static void ais_http_res_free(struct ais_http_res *res)
 {
-	static const char res[] =
-		"HTTP/1.1 200 OK\r\n"
-		"Content-Type: text/plain\r\n"
-		"Content-Length: 13\r\n"
-		"\r\n"
-		"Hello, World!\n";
-	size_t len = sizeof(res) - 1;
+	if (!res)
+		return;
 
-	return ais_sock_buf_append_grow(&cli->tx_buf, res, len);
+	gwnet_http_res_hdr_free(&res->hdr);
+	memset(res, 0, sizeof(*res));
 }
 
-static int handle_route_404(struct ais_sock_tcp_cli *cli)
+static int handle_req_state_init(struct ais_http_req *req)
 {
-	static const char res[] =
-		"HTTP/1.1 404 Not Found\r\n"
-		"Content-Type: text/plain\r\n"
-		"Content-Length: 14\r\n"
-		"\r\n"
-		"404 Not Found\n";
-	size_t len = sizeof(res) - 1;
-
-	return ais_sock_buf_append_grow(&cli->tx_buf, res, len);
+	req->state = AIS_HREQ_STATE_RECV_HDR;
+	return 0;
 }
 
-static int handle_route(struct ais_sock_tcp_cli *cli, struct ais_http_req *req)
+/*
+ * Returns true if the connection should be kept alive, false otherwise.
+ */
+static bool check_keep_alive(struct ais_http_req *req)
 {
-	const char *uri = req->hdr_req.uri;
+	/*
+	 * First, check the "Connection" header field.
+	 */
+	const char *conn;
 
-	printf("HTTP Request from %s: %s %s HTTP/1.%d\n",
-		req->addr,
-		ais_http_get_method_name(req->hdr_req.method),
-		uri,
-		req->hdr_req.version == GWNET_HTTP_VER_1_1 ? 1 : 0);
+	conn = gwnet_http_hdr_fields_get(&req->hdr_req.fields, "connection");
+	if (conn)
+		return (strcasecmp(conn, "keep-alive") == 0);
 
-	if (!strcmp(uri, "/"))
-		return handle_route_index(cli);
+	/*
+	 * If not present, check the HTTP version.
+	 *   - HTTP/1.1 defaults to keep-alive.
+	 *   - HTTP/1.0 defaults to close.
+	 */
+	return (req->hdr_req.version == GWNET_HTTP_VER_1_1);
+}
 
-	if (!strcmp(uri, "/hello"))
-		return handle_route_hello(cli);
+static int handle_req_state_recv_hdr(struct ais_http_req *req)
+{
+	struct gwnet_http_hdr_pctx *pctx = &req->hdr_pctx;
+	struct ais_sock_tcp_cli *cli = req->tcp_cli;
+	int r;
 
-	/* 404 Not Found */
-	return handle_route_404(cli);
+	pctx->off = 0;
+	pctx->buf = cli->rx_buf.buf;
+	pctx->len = cli->rx_buf.len;
+	pctx->max_len = 4096; /* 4 KiB */
+	r = gwnet_http_req_hdr_parse(pctx, &req->hdr_req);
+	if (r < 0)
+		return r;
+
+	ais_buf_soft_advance(&cli->rx_buf, pctx->off);
+	req->keep_alive = check_keep_alive(req);
+	req->state = AIS_HREQ_STATE_RECV_BODY;
+	return 0;
+}
+
+static int invoke_route(struct ais_http_req *req)
+{
+	int r = 0;
+
+	if (req->cb_route) {
+		ais_http_res_set_code(&req->res, 200);
+		r = req->cb_route(req);
+		if (r < 0)
+			return r;
+	} else {
+		ais_http_res_set_code(&req->res, 206);
+		ais_http_res_add_hdr(&req->res, "Content-Length", "0");
+	}
+
+	return r;
+}
+
+static int handle_req_state_recv_body(struct ais_http_req *req)
+{
+	int r;
+
+	r = invoke_route(req);
+	if (r < 0)
+		return r;
+
+	req->state = AIS_HREQ_STATE_BUILD_RES;
+	return r;
+}
+
+static int calculate_required_size(struct ais_http_res *res)
+{
+	struct gwnet_http_res_hdr *hdr = &res->hdr;
+	size_t i;
+	int n;
+
+	n = (int) (sizeof("HTTP/1.1 ") - 1);
+	n += 3; /* status code */
+	n += 1; /* space */
+	n += res->hdr.reason ? strlen(res->hdr.reason) : 0;
+	n += 2; /* \r\n */
+	for (i = 0; i < hdr->fields.nr; i++) {
+		n += strlen(hdr->fields.ff[i].key);
+		n += 2; /* ": " */
+		n += strlen(hdr->fields.ff[i].val);
+		n += 2; /* \r\n */
+	}
+	n += 2; /* final \r\n */
+	return n;
+}
+
+static int handle_req_state_build_res(struct ais_http_req *req)
+{
+	struct ais_sock_tcp_cli *cli = req->tcp_cli;
+	struct ais_http_res *res = &req->res;
+	struct ais_buf *txb = &cli->tx_buf;
+	size_t cap, len, i;
+	const char *conn;
+	char *buf;
+	int r;
+
+	if (!res->hdr.reason) {
+		res->hdr.reason = strdup(translate_http_code(res->hdr.code));
+		if (!res->hdr.reason)
+			return -ENOMEM;
+	}
+
+	conn = req->keep_alive ? "keep-alive" : "close";
+	r = ais_http_res_add_hdr(res, "Connection", conn);
+	if (r < 0)
+		return r;
+
+	r = calculate_required_size(res);
+	if (txb->cap < (size_t)r) {
+		r = ais_buf_prepare_need(txb, (size_t)r);
+		if (r < 0)
+			return r;
+	}
+
+	/*
+	 * Build the response.
+	 */
+	buf = txb->buf + txb->len;
+	cap = txb->cap - txb->len;
+	len = 0;
+	len += snprintf(buf + len, cap - len, "HTTP/1.1 %hu %s\r\n",
+			req->res.hdr.code, req->res.hdr.reason);
+
+	for (i = 0; i < req->res.hdr.fields.nr; i++) {
+		len += snprintf(buf + len, cap - len, "%s: %s\r\n",
+				req->res.hdr.fields.ff[i].key,
+				req->res.hdr.fields.ff[i].val);
+	}
+	len += snprintf(buf + len, cap - len, "\r\n");
+	txb->len += len;
+	req->state = AIS_HREQ_STATE_SEND_RES;
+	return 0;
+}
+
+static int handle_req_state_send_res(struct ais_http_req *req)
+{
+	struct ais_sock_tcp_cli *cli = req->tcp_cli;
+	struct ais_buf *txb = &cli->tx_buf;
+
+	if (txb->len > 0)
+		return -EAGAIN;
+
+	ais_http_res_free(&req->res);
+	req->state = AIS_HREQ_STATE_DONE;
+	return 0;
+}
+
+static int __ais_http_handle_req(struct ais_http_req *req)
+{
+	int r = 0;
+
+	switch (req->state) {
+	case AIS_HREQ_STATE_DONE:
+	case AIS_HREQ_STATE_INIT:
+		r = handle_req_state_init(req);
+		break;
+	case AIS_HREQ_STATE_RECV_HDR:
+		r = handle_req_state_recv_hdr(req);
+		break;
+	case AIS_HREQ_STATE_RECV_BODY:
+		r = handle_req_state_recv_body(req);
+		break;
+	case AIS_HREQ_STATE_BUILD_RES:
+		r = handle_req_state_build_res(req);
+		break;
+	case AIS_HREQ_STATE_SEND_RES:
+		r = handle_req_state_send_res(req);
+		break;
+	default:
+		assert(false && "Invalid HTTP request state");
+		r = -EINVAL;
+		break;
+	}
+
+	return r;
+}
+
+static int ais_http_handle_req(struct ais_http_req *req)
+{
+	int r;
+
+	while (true) {
+		r = __ais_http_handle_req(req);
+		if (r)
+			break;
+	}
+
+	return r;
 }
 
 static ssize_t http_recv_callback(struct ais_sock_tcp_cli *cli)
 {
 	struct ais_http_req *req = cli->user_data;
-	struct gwnet_http_hdr_pctx *pctx = &req->hdr_pctx;
 	int r;
 
-	pctx->off = 0;
-	pctx->buf = cli->rx_buf.buf;
-	pctx->len = cli->rx_buf.off;
-	pctx->max_len = 4096; /* 4 KiB */
-	r = gwnet_http_req_hdr_parse(pctx, &req->hdr_req);
-	if (r == -EAGAIN) {
-		/*
-		 * Need more data...
-		 */
-		return 0;
-	}
-
-	if (r != 0)
+	r = ais_http_handle_req(req);
+	if (r < 0 && r != -EAGAIN)
 		return r;
 
-	/*
-	 * Successfully parsed the HTTP request header.
-	 * Now handle the route.
-	 */
-	r = handle_route(cli, req);
-	if (r < 0)
-		return r;
-
-	return pctx->off;
+	return r;
 }
 
 static int http_send_callback(struct ais_sock_tcp_cli *cli, ssize_t sent_len)
 {
-	(void)sent_len;
-	if (!cli->tx_buf.off)
-		shutdown(cli->fd, SHUT_RDWR);
+	struct ais_http_req *req = cli->user_data;
+	int r;
+
+	r = ais_http_handle_req(req);
+	if (r < 0 && r != -EAGAIN)
+		return r;
+
+	if (req->state == AIS_HREQ_STATE_DONE && !req->keep_alive)
+		return -ECONNABORTED;
 
 	return 0;
+	(void)sent_len;
+}
+
+static void ais_http_req_free(struct ais_http_req *req)
+{
+	if (!req)
+		return;
+
+	gwnet_http_hdr_pctx_free(&req->hdr_pctx);
+	gwnet_http_req_hdr_free(&req->hdr_req);
+	ais_http_res_free(&req->res);
+	free(req);
 }
 
 static void http_close_callback(struct ais_sock_tcp_cli *cli)
 {
 	struct ais_http_req *req = cli->user_data;
-	gwnet_http_hdr_pctx_free(&req->hdr_pctx);
-	gwnet_http_req_hdr_free(&req->hdr_req);
-	free(req);
+	ais_http_req_free(req);
 }
 
 static int http_accept_callback(struct ais_sock_tcp_cli *cli, void *arg)

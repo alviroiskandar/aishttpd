@@ -5,6 +5,8 @@
 #ifndef AISHTTPD_TCP_H
 #define AISHTTPD_TCP_H
 
+#include "buf.h"
+
 #include <stdbool.h>
 #include <sys/epoll.h>
 #include <netinet/in.h>
@@ -19,12 +21,6 @@ struct ais_sock_addr {
 		struct sockaddr_in	in;
 		struct sockaddr_in6	in6;
 	};
-};
-
-struct ais_sock_buf {
-	char		*buf;
-	uint16_t	len;
-	uint16_t	off;
 };
 
 struct ais_sock_tcp_cli;
@@ -49,8 +45,8 @@ struct ais_sock_tcp_cli {
 	int			fd;
 	uint32_t		idx;
 	void			*user_data;
-	struct ais_sock_buf	rx_buf;
-	struct ais_sock_buf	tx_buf;
+	struct ais_buf		rx_buf;
+	struct ais_buf		tx_buf;
 	struct ais_sock_addr	addr;
 	struct ais_sock_tcp_srv	*srv;
 	uint32_t		ep_mask;
@@ -154,12 +150,6 @@ static inline void ais_sock_tcp_cli_set_cb_close(struct ais_sock_tcp_cli *cli, a
 
 int ais_sock_tcp_srv_run(struct ais_sock_tcp_srv *srv);
 void ais_sock_tcp_srv_stop(struct ais_sock_tcp_srv *srv);
-
-int ais_sock_buf_init(struct ais_sock_buf *sb, uint16_t size);
-int ais_sock_buf_append(struct ais_sock_buf *sb, const void *data, uint16_t len);
-int ais_sock_buf_append_grow(struct ais_sock_buf *sb, const void *data, uint16_t len);
-void ais_sock_buf_free(struct ais_sock_buf *sb);
-void ais_sock_buf_advance(struct ais_sock_buf *sb, uint16_t len);
 
 enum {
 	AIS_EV_DATA_TCP_SRV = (1ull << 48ull),

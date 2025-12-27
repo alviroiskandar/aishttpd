@@ -14,12 +14,27 @@ struct ais_http_req;
 typedef int (*ais_http_route_cb_t)(struct ais_http_req *req);
 typedef int (*ais_http_accept_cb_t)(struct ais_http_req *req, void *arg);
 
+struct ais_http_res {
+	struct gwnet_http_res_hdr	hdr;
+};
+
+enum {
+	AIS_HREQ_STATE_INIT      = 0,
+	AIS_HREQ_STATE_RECV_HDR  = 1,
+	AIS_HREQ_STATE_RECV_BODY = 2,
+	AIS_HREQ_STATE_BUILD_RES = 3,
+	AIS_HREQ_STATE_SEND_RES  = 4,
+	AIS_HREQ_STATE_DONE      = 5,
+};
+
 struct ais_http_req {
+	uint8_t				state;
 	ais_http_route_cb_t		cb_route;
 	struct gwnet_http_hdr_pctx	hdr_pctx;
 	struct gwnet_http_req_hdr	hdr_req;
-	struct gwnet_http_res_hdr	hdr_res;
 	struct ais_sock_tcp_cli		*tcp_cli;
+	struct ais_http_res		res;
+	bool				keep_alive;
 	char				addr[INET6_ADDRSTRLEN + sizeof(":65535")];
 };
 
@@ -52,6 +67,16 @@ static inline void ais_http_req_set_accept_cb(struct ais_http_ctx *ctx, ais_http
 static inline void ais_http_req_set_accept_cb_arg(struct ais_http_ctx *ctx, void *arg)
 {
 	ctx->cb_accept_arg = arg;
+}
+
+static inline void ais_http_res_set_code(struct ais_http_res *res, uint16_t code)
+{
+	res->hdr.code = code;
+}
+
+static inline int ais_http_res_add_hdr(struct ais_http_res *res, const char *k, const char *v)
+{
+	return gwnet_http_hdr_fields_add(&res->hdr.fields, k, v);
 }
 
 #endif /* #ifndef AISHTTPD_HTTP_H */

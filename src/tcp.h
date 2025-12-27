@@ -29,7 +29,7 @@ struct ais_sock_buf {
 
 struct ais_sock_tcp_cli;
 
-typedef int (*ais_sock_tcp_srv_cb_accept_t)(struct ais_sock_tcp_cli *cli);
+typedef int (*ais_sock_tcp_srv_cb_accept_t)(struct ais_sock_tcp_cli *cli, void *arg);
 typedef ssize_t (*ais_sock_tcp_cli_cb_rx_t)(struct ais_sock_tcp_cli *cli);
 typedef int (*ais_sock_tcp_cli_cb_tx_t)(struct ais_sock_tcp_cli *cli, ssize_t sent_len);
 typedef void (*ais_sock_tcp_cli_cb_close_t)(struct ais_sock_tcp_cli *cli);
@@ -110,6 +110,7 @@ struct ais_sock_tcp_srv {
 	 * is accepted.
 	 */
 	ais_sock_tcp_srv_cb_accept_t	cb_accept;
+	void				*cb_accept_arg;
 };
 
 /*
@@ -129,6 +130,11 @@ void ais_sock_tcp_srv_free(struct ais_sock_tcp_srv *srv);
 static inline void ais_sock_tcp_srv_set_cb_accept(struct ais_sock_tcp_srv *srv, ais_sock_tcp_srv_cb_accept_t cb)
 {
 	srv->cb_accept = cb;
+}
+
+static inline void ais_sock_tcp_srv_set_cb_accept_arg(struct ais_sock_tcp_srv *srv, void *arg)
+{
+	srv->cb_accept_arg = arg;
 }
 
 static inline void ais_sock_tcp_cli_set_cb_rx(struct ais_sock_tcp_cli *cli, ais_sock_tcp_cli_cb_rx_t cb)

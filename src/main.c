@@ -23,12 +23,14 @@ static void handle_signal(int sig)
 
 int main(void)
 {
-	static const struct ais_sock_tcp_srv_iarg iarg = {
-		.bind_addr = "::",
-		.port = 9980,
-		.sock_backlog = 128,
-		.epoll_nevents = 64,
-		.max_clients = 1024,
+	static const struct ais_http_srv_iarg iarg = {
+		.tcp = {
+			.bind_addr = "::",
+			.port = 9980,
+			.sock_backlog = 128,
+			.epoll_nevents = 64,
+			.max_clients = 1024,
+		},
 	};
 	struct ais_http_ctx http_ctx;
 	struct sigaction sa = { .sa_handler = handle_signal };
@@ -47,7 +49,7 @@ int main(void)
 	sa.sa_handler = SIG_IGN;
 	sigaction(SIGPIPE, &sa, NULL);
 
-	printf("Starting HTTP server on [%s]:%hu...\n", iarg.bind_addr, iarg.port);
+	printf("Starting HTTP server on [%s]:%hu...\n", iarg.tcp.bind_addr, iarg.tcp.port);
 	r = ais_http_ctx_run(&http_ctx);
 	if (r < 0)
 		fprintf(stderr, "Failed to run HTTP server: %d\n", r);

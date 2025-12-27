@@ -165,7 +165,7 @@ static int __handle_event_tcp_srv(struct ais_sock_tcp_srv *srv)
 	cli->srv = srv;
 	cli->addr = addr;
 	if (srv->cb_accept) {
-		r = srv->cb_accept(cli);
+		r = srv->cb_accept(cli, srv->cb_accept_arg);
 		if (r < 0) {
 			cli->fd = -1;
 			ais_sock_tcp_cli_free(cli);

@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <signal.h>
 #include <assert.h>
+#include <time.h>
 
 /*
  * TODO(viro_ssfs):
@@ -220,11 +221,22 @@ static int handle_req_state_recv_body(struct ais_http_req *req)
 	return r;
 }
 
+static const char *gen_date_buf(char *buf)
+{
+	time_t now = time(NULL);
+	struct tm tm;
+
+	gmtime_r(&now, &tm);
+	strftime(buf, 128, "%a, %d %b %Y %H:%M:%S GMT", &tm);
+	return buf;
+}
+
 static int handle_req_state_build_res(struct ais_http_req *req)
 {
 	struct ais_sock_tcp_cli *cli = req->tcp_cli;
 	struct ais_http_res *res = &req->res;
 	struct ais_buf *txb = &cli->tx_buf;
+	char date_buf[128];
 	const char *tmp;
 	size_t i;
 	int r;
@@ -238,9 +250,10 @@ static int handle_req_state_build_res(struct ais_http_req *req)
 	tmp = res->hdr.reason ? res->hdr.reason : translate_http_code(res->hdr.code);
 	r = ais_buf_apfmt(txb,
 			  "HTTP/%s %u %s\r\n"
-			  "Server: aishttpd v0.0.1\r\n",
+			  "Server: aishttpd v0.0.1\r\n"
+			  "Date: %s\r\n",
 			  (req->hdr_req.version == GWNET_HTTP_VER_1_1) ? "1.1" : "1.0",
-			  res->hdr.code, tmp);
+			  res->hdr.code, tmp, gen_date_buf(date_buf));
 	if (r < 0)
 		return r;
 

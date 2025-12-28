@@ -58,7 +58,7 @@ int main(void)
 			.port = 9980,
 			.sock_backlog = 128,
 			.epoll_nevents = 64,
-			.max_clients = 1024,
+			.max_clients = 50000,
 		},
 	};
 	struct ais_http_ctx http_ctx;

@@ -264,7 +264,7 @@ static int handle_event_tcp_cli_send(struct ais_sock_tcp_cli *cli)
 
 	send_len = cli->tx_buf.len;
 	send_buf = cli->tx_buf.buf;
-	send_ret = send(cli->fd, send_buf, send_len, MSG_DONTWAIT);
+	send_ret = send(cli->fd, send_buf, send_len, MSG_DONTWAIT | MSG_NOSIGNAL);
 	if (send_ret < 0) {
 		int err = -errno;
 		if (err == -EAGAIN || err == -EINTR)

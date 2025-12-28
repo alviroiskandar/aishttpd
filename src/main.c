@@ -5,6 +5,7 @@
 #include "http.h"
 #include <stdio.h>
 #include <signal.h>
+#include <errno.h>
 
 static struct ais_http_ctx *g_http_ctx;
 
@@ -32,7 +33,7 @@ static int setup_signal_handler(struct ais_http_ctx *ctx)
 	r |= sigaction(SIGHUP, &sa, NULL);
 	sa.sa_handler = SIG_IGN;
 	r |= sigaction(SIGPIPE, &sa, NULL);
-	return r;
+	return r ? -errno : 0;
 }
 
 static int route_cb(struct ais_http_req *req)

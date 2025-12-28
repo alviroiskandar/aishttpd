@@ -66,6 +66,7 @@ struct ais_sock_tcp_cli {
  */
 struct ais_sock_tcp_srv {
 	volatile bool		should_stop;
+	bool			accepting_conns;
 
 	/*
 	 * Main server socket file descriptor (listening socket).

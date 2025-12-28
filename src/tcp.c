@@ -184,6 +184,37 @@ static void shrink_clients_array(struct ais_sock_tcp_srv *srv)
 	srv->cap_clients = new_cap;
 }
 
+static int handle_error_from_accept4(struct ais_sock_tcp_srv *srv, int err)
+{
+	/*
+	 * We must be very careful in handling -EMFILE and -ENFILE here
+	 * as it is prone to infinite loop.
+	 *
+	 * If we hit -EMFILE or -ENFILE:
+	 *   - Stop accepting new connections immediately.
+	 *   - Disable EPOLLIN event on the server socket.
+	 *   - Wait until a client disconnects, then re-enable EPOLLIN event.
+	 */
+	if (err == -EMFILE || err == -ENFILE) {
+		struct epoll_event ev;
+
+		ev.events = 0;
+		ev.data.u64 = 0;
+		ev.data.ptr = srv;
+		ev.data.u64 |= AIS_EV_DATA_TCP_SRV;
+		if (epoll_ctl(srv->ep_fd, EPOLL_CTL_MOD, srv->fd, &ev) < 0)
+			return -errno;
+
+		srv->accepting_conns = false;
+		return -EAGAIN;
+	}
+
+	if (err == -EAGAIN || err == -EINTR)
+		return -EAGAIN;
+
+	return err;
+}
+
 static int __handle_event_tcp_srv(struct ais_sock_tcp_srv *srv)
 {
 	struct ais_sock_addr addr;
@@ -194,7 +225,7 @@ static int __handle_event_tcp_srv(struct ais_sock_tcp_srv *srv)
 
 	fd = accept4(srv->fd, &addr.sa, &addr_len, SOCK_NONBLOCK | SOCK_CLOEXEC);
 	if (fd < 0)
-		return -errno;
+		return handle_error_from_accept4(srv, -errno);
 
 	if (srv->nclients >= srv->max_clients) {
 		/*
@@ -385,6 +416,7 @@ static void ais_sock_tcp_srv_close_cli(struct ais_sock_tcp_srv *srv, struct ais_
 {
 	uint32_t last_idx = (uint32_t)(srv->nclients - 1);
 	struct ais_sock_tcp_cli **clients = srv->clients;
+	struct epoll_event ev;
 
 	epoll_ctl(srv->ep_fd, EPOLL_CTL_DEL, cli->fd, NULL);
 
@@ -402,6 +434,20 @@ static void ais_sock_tcp_srv_close_cli(struct ais_sock_tcp_srv *srv, struct ais_
 	srv->nclients--;
 	ais_sock_tcp_cli_free(cli);
 	shrink_clients_array(srv);
+
+	/*
+	 * Paired with the logic in handle_error_from_accept4(),
+	 * if we are not accepting new connections, re-enable
+	 * it now since a client has just disconnected.
+	 */
+	if (!srv->accepting_conns) {
+		ev.events = EPOLLIN;
+		ev.data.u64 = 0;
+		ev.data.ptr = srv;
+		ev.data.u64 |= AIS_EV_DATA_TCP_SRV;
+		if (!epoll_ctl(srv->ep_fd, EPOLL_CTL_MOD, srv->fd, &ev))
+			srv->accepting_conns = true;
+	}
 }
 
 static int handle_event_tcp_cli(struct ais_sock_tcp_srv *srv, struct epoll_event *ev, void *udata)

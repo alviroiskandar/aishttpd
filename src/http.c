@@ -252,12 +252,6 @@ static int construct_res_hdr(struct ais_http_req *req)
 	size_t i;
 	int r;
 
-	if (!res->hdr.reason) {
-		res->hdr.reason = strdup(translate_http_code(res->hdr.code));
-		if (!res->hdr.reason)
-			return -ENOMEM;
-	}
-
 	tmp = res->hdr.reason ? res->hdr.reason : translate_http_code(res->hdr.code);
 	r = ais_buf_apfmt(txb,
 			  "HTTP/%s %u %s\r\n"

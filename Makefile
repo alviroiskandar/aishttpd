@@ -14,8 +14,8 @@ AISHTTPD_OBJECTS := $(AISHTTPD_SOURCES:.c=.o)
 AISHTTPD_DEPS := $(AISHTTPD_SOURCES:.c=.d)
 
 ifeq ($(SANITIZE),1)
-    CFLAGS += -fsanitize=address -fsanitize=undefined
-    LDFLAGS += -fsanitize=address -fsanitize=undefined
+	CFLAGS += -fsanitize=address -fsanitize=undefined
+	LDFLAGS += -fsanitize=address -fsanitize=undefined
 endif
 
 all: aishttpd

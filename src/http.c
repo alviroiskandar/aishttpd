@@ -463,32 +463,100 @@ static int http_accept_callback(struct ais_sock_tcp_cli *cli, void *arg)
 	return 0;
 }
 
-int ais_http_ctx_init(struct ais_http_ctx *ctx, const struct ais_http_srv_iarg *iarg)
+static int ais_http_wrk_init(struct ais_http_ctx *http_ctx, struct ais_http_wrk *wrk,
+			     const struct ais_http_srv_iarg *iarg)
 {
 	int r;
 
-	r = ais_sock_tcp_srv_init(&ctx->tcp_srv, &iarg->tcp);
+	r = ais_sock_tcp_srv_init(&wrk->tcp_srv, &iarg->tcp);
 	if (r < 0)
 		return r;
 
-	ais_sock_tcp_srv_set_cb_accept(&ctx->tcp_srv, &http_accept_callback);
-	ais_sock_tcp_srv_set_cb_accept_arg(&ctx->tcp_srv, ctx);
+	ais_sock_tcp_srv_set_cb_accept(&wrk->tcp_srv, &http_accept_callback);
+	ais_sock_tcp_srv_set_cb_accept_arg(&wrk->tcp_srv, http_ctx);
 	return 0;
+}
+
+int ais_http_ctx_init(struct ais_http_ctx *ctx, const struct ais_http_srv_iarg *iarg)
+{
+	struct ais_http_wrk *wrk;
+	size_t i;
+	int r;
+
+	ctx->workers = calloc(iarg->nr_workers, sizeof(*ctx->workers));
+	if (!ctx->workers)
+		return -ENOMEM;
+
+	ctx->nr_workers = iarg->nr_workers;
+	for (i = 0; i < iarg->nr_workers; i++) {
+		wrk = &ctx->workers[i];
+		r = ais_http_wrk_init(ctx, wrk, iarg);
+		if (r < 0) {
+			ais_http_ctx_free(ctx);
+			return r;
+		}
+	}
+
+	return 0;
+}
+
+static void *ais_wrk_entry(void *arg)
+{
+	struct ais_http_wrk *wrk = arg;
+	intptr_t r;
+
+	r = ais_sock_tcp_srv_run(&wrk->tcp_srv);
+	return (void *)r;
 }
 
 int ais_http_ctx_run(struct ais_http_ctx *ctx)
 {
-	return ais_sock_tcp_srv_run(&ctx->tcp_srv);
+	size_t i, c = ctx->nr_workers - 1;
+	void *p;
+	int r;
+
+	for (i = 0; i < c; i++) {
+		struct ais_http_wrk *wrk = &ctx->workers[i];
+		r = pthread_create(&wrk->thread, NULL, &ais_wrk_entry, wrk);
+		if (r != 0)
+			goto out_err;
+	}
+
+	p = ais_wrk_entry(&ctx->workers[c]);
+	return (int) (intptr_t)p;
+
+out_err:
+	while (i--) {
+		struct ais_http_wrk *wrk = &ctx->workers[i];
+		ais_sock_tcp_srv_stop(&wrk->tcp_srv);
+		pthread_join(wrk->thread, NULL);
+	}
+	return -r;
 }
 
 void ais_http_ctx_free(struct ais_http_ctx *ctx)
 {
-	ais_sock_tcp_srv_free(&ctx->tcp_srv);
+	size_t i;
+
+	if (!ctx->workers)
+		return;
+
+	for (i = 0; i < ctx->nr_workers; i++)
+		ais_sock_tcp_srv_free(&ctx->workers[i].tcp_srv);
+
+	free(ctx->workers);
+	memset(ctx, 0, sizeof(*ctx));
 }
 
 void ais_http_ctx_stop(struct ais_http_ctx *ctx)
 {
-	ais_sock_tcp_srv_stop(&ctx->tcp_srv);
+	size_t i;
+
+	if (!ctx->workers)
+		return;
+
+	for (i = 0; i < ctx->nr_workers; i++)
+		ais_sock_tcp_srv_stop(&ctx->workers[i].tcp_srv);
 }
 
 int ais_http_res_body_set_buf(struct ais_http_res *res, const void *buf)

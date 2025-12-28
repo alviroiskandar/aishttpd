@@ -60,6 +60,7 @@ int main(void)
 			.epoll_nevents = 64,
 			.max_clients = 50000,
 		},
+		.nr_workers = 4,
 	};
 	struct ais_http_ctx http_ctx;
 	int r;

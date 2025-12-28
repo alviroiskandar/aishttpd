@@ -9,6 +9,8 @@
 #include "http_parser/gwnet_http1.h"
 #include "tcp.h"
 
+#include <pthread.h>
+
 struct ais_http_req;
 
 typedef int (*ais_http_route_cb_t)(struct ais_http_req *req);
@@ -52,14 +54,21 @@ struct ais_http_req {
 	char				addr[INET6_ADDRSTRLEN + sizeof(":65535")];
 };
 
-struct ais_http_ctx {
+struct ais_http_wrk {
 	struct ais_sock_tcp_srv		tcp_srv;
+	pthread_t			thread;
+};
+
+struct ais_http_ctx {
+	struct ais_http_wrk		*workers;
+	uint32_t			nr_workers;
 	ais_http_accept_cb_t		cb_accept;
 	void				*cb_accept_arg;
 };
 
 struct ais_http_srv_iarg {
 	struct ais_sock_tcp_srv_iarg	tcp;
+	uint32_t			nr_workers;
 };
 
 int ais_http_ctx_init(struct ais_http_ctx *ctx, const struct ais_http_srv_iarg *iarg);

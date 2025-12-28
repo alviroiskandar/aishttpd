@@ -37,7 +37,7 @@ int ais_sock_tcp_srv_init(struct ais_sock_tcp_srv *srv, const struct ais_sock_tc
 	 * Only create the socket, don't bind or listen yet. Allow
 	 * the caller to call setsockopt() before binding and listening.
 	 */
-	fd = socket(ba->sa.sa_family, SOCK_STREAM | SOCK_NONBLOCK, IPPROTO_TCP);
+	fd = socket(ba->sa.sa_family, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, IPPROTO_TCP);
 	if (fd < 0)
 		return -errno;
 
@@ -47,7 +47,7 @@ int ais_sock_tcp_srv_init(struct ais_sock_tcp_srv *srv, const struct ais_sock_tc
 		goto out_err_socket;
 	}
 
-	ep_fd = epoll_create(128);
+	ep_fd = epoll_create1(EPOLL_CLOEXEC);
 	if (ep_fd < 0) {
 		err = -errno;
 		goto out_err_eventfd;
@@ -135,7 +135,7 @@ static int __handle_event_tcp_srv(struct ais_sock_tcp_srv *srv)
 	struct epoll_event ev;
 	int r, fd;
 
-	fd = accept4(srv->fd, &addr.sa, &addr_len, SOCK_NONBLOCK);
+	fd = accept4(srv->fd, &addr.sa, &addr_len, SOCK_NONBLOCK | SOCK_CLOEXEC);
 	if (fd < 0)
 		return -errno;
 

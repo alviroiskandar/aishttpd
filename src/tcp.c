@@ -154,10 +154,10 @@ static int __handle_event_tcp_srv(struct ais_sock_tcp_srv *srv)
 	/*
 	 * TODO(viro_ssfs): Make the buffer size configurable from the caller.
 	 */
-	r = ais_buf_init(&cli->rx_buf, 8192);
+	r = ais_buf_init(&cli->rx_buf, 1024);
 	if (r < 0)
 		goto out_err_free_cli;
-	r = ais_buf_init(&cli->tx_buf, 8192);
+	r = ais_buf_init(&cli->tx_buf, 512);
 	if (r < 0)
 		goto out_err_free_cli;
 

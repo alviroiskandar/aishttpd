@@ -220,6 +220,12 @@ static int handle_event_tcp_cli_recv(struct ais_sock_tcp_cli *cli)
 	void *recv_buf;
 
 	recv_len = rxb->cap - rxb->len;
+	if (!recv_len) {
+		if (ais_buf_increase(rxb, 4096) < 0)
+			return -ENOMEM;
+		recv_len = rxb->cap - rxb->len;
+	}
+
 	recv_buf = &rxb->buf[rxb->len];
 	recv_ret = recv(cli->fd, recv_buf, recv_len, MSG_DONTWAIT);
 	if (recv_ret < 0) {

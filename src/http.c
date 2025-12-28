@@ -335,12 +335,6 @@ static void reset_req(struct ais_http_req *req)
 
 static int handle_req_state_send_res(struct ais_http_req *req)
 {
-	struct ais_sock_tcp_cli *cli = req->tcp_cli;
-	struct ais_buf *txb = &cli->tx_buf;
-
-	if (txb->len > 0)
-		return -EAGAIN;
-
 	reset_req(req);
 	req->state = AIS_HREQ_STATE_DONE;
 	return 0;
@@ -398,6 +392,7 @@ static ssize_t http_recv_callback(struct ais_sock_tcp_cli *cli)
 	if (r < 0 && r != -EAGAIN)
 		return r;
 
+	ais_buf_soft_advance_sync(&cli->rx_buf);
 	return r;
 }
 

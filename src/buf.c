@@ -75,6 +75,9 @@ void ais_buf_soft_advance_sync(struct ais_buf *b)
 	assert(b->buf >= b->orig_buf);
 	assert(b->cap >= b->len);
 
+	if (b->buf == b->orig_buf)
+		return;
+
 	if (!b->len) {
 		ais_buf_free(b);
 		return;

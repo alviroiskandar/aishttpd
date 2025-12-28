@@ -201,7 +201,7 @@ static int invoke_route(struct ais_http_req *req)
 		if (r < 0)
 			return r;
 	} else {
-		ais_http_res_set_code(&req->res, 206);
+		ais_http_res_set_code(&req->res, 204);
 		ais_http_res_add_hdr(&req->res, "Content-Length", "0");
 	}
 

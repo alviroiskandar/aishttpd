@@ -21,6 +21,20 @@ static void handle_signal(int sig)
 	(void)sig;
 }
 
+static int setup_signal_handler(struct ais_http_ctx *ctx)
+{
+	struct sigaction sa = { .sa_handler = handle_signal };
+	int r = 0;
+
+	g_http_ctx = ctx;
+	r |= sigaction(SIGINT, &sa, NULL);
+	r |= sigaction(SIGTERM, &sa, NULL);
+	r |= sigaction(SIGHUP, &sa, NULL);
+	sa.sa_handler = SIG_IGN;
+	r |= sigaction(SIGPIPE, &sa, NULL);
+	return r;
+}
+
 int main(void)
 {
 	static const struct ais_http_srv_iarg iarg = {
@@ -33,7 +47,6 @@ int main(void)
 		},
 	};
 	struct ais_http_ctx http_ctx;
-	struct sigaction sa = { .sa_handler = handle_signal };
 	int r;
 
 	r = ais_http_ctx_init(&http_ctx, &iarg);
@@ -42,12 +55,12 @@ int main(void)
 		return -r;
 	}
 
-	g_http_ctx = &http_ctx;
-	sigaction(SIGINT, &sa, NULL);
-	sigaction(SIGTERM, &sa, NULL);
-	sigaction(SIGHUP, &sa, NULL);
-	sa.sa_handler = SIG_IGN;
-	sigaction(SIGPIPE, &sa, NULL);
+	r = setup_signal_handler(&http_ctx);
+	if (r < 0) {
+		fprintf(stderr, "Failed to setup signal handler: %d\n", r);
+		ais_http_ctx_free(&http_ctx);
+		return -r;
+	}
 
 	printf("Starting HTTP server on [%s]:%hu...\n", iarg.tcp.bind_addr, iarg.tcp.port);
 	r = ais_http_ctx_run(&http_ctx);

@@ -505,18 +505,18 @@ static void *ais_wrk_entry(void *arg)
 
 int ais_http_ctx_run(struct ais_http_ctx *ctx)
 {
-	size_t i, c = ctx->nr_workers - 1;
+	size_t i, c = ctx->nr_workers;
 	void *p;
 	int r;
 
-	for (i = 0; i < c; i++) {
+	for (i = 1; i < c; i++) {
 		struct ais_http_wrk *wrk = &ctx->workers[i];
 		r = pthread_create(&wrk->thread, NULL, &ais_wrk_entry, wrk);
 		if (r != 0)
 			goto out_err;
 	}
 
-	p = ais_wrk_entry(&ctx->workers[c]);
+	p = ais_wrk_entry(&ctx->workers[0]);
 	return (int) (intptr_t)p;
 
 out_err:
@@ -530,13 +530,18 @@ out_err:
 
 void ais_http_ctx_free(struct ais_http_ctx *ctx)
 {
-	size_t i;
+	size_t i, c;
 
 	if (!ctx->workers)
 		return;
 
-	for (i = 0; i < ctx->nr_workers; i++)
-		ais_sock_tcp_srv_free(&ctx->workers[i].tcp_srv);
+	c = ctx->nr_workers;
+	for (i = 0; i < c; i++) {
+		struct ais_http_wrk *wrk = &ctx->workers[i];
+		if (i > 0)
+			pthread_join(wrk->thread, NULL);
+		ais_sock_tcp_srv_free(&wrk->tcp_srv);
+	}
 
 	free(ctx->workers);
 	memset(ctx, 0, sizeof(*ctx));

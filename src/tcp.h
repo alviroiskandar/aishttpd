@@ -99,6 +99,7 @@ struct ais_sock_tcp_srv {
 	 */
 	struct ais_sock_tcp_cli	**clients;
 	size_t			nclients;
+	size_t			cap_clients;
 	size_t			max_clients;
 
 	/*

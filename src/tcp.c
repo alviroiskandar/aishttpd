@@ -16,6 +16,7 @@ int ais_sock_tcp_srv_init(struct ais_sock_tcp_srv *srv, const struct ais_sock_tc
 {
 	struct ais_sock_addr *ba = &srv->bind_addr;
 	int err, fd, ep_fd, ev_fd;
+	size_t cap_client;
 
 	memset(srv, 0, sizeof(*srv));
 	if (inet_pton(AF_INET, iarg->bind_addr, &ba->in.sin_addr) == 1) {
@@ -59,7 +60,12 @@ int ais_sock_tcp_srv_init(struct ais_sock_tcp_srv *srv, const struct ais_sock_tc
 		goto out_err_epoll;
 	}
 
-	srv->clients = calloc(iarg->max_clients, sizeof(*srv->clients));
+	if (iarg->max_clients <= 32)
+		cap_client = iarg->max_clients;
+	else
+		cap_client = 32;
+
+	srv->clients = calloc(cap_client, sizeof(*srv->clients));
 	if (!srv->clients) {
 		err = -ENOMEM;
 		goto out_err_events;
@@ -70,6 +76,7 @@ int ais_sock_tcp_srv_init(struct ais_sock_tcp_srv *srv, const struct ais_sock_tc
 	srv->ev_fd = ev_fd;
 	srv->nevents = iarg->epoll_nevents;
 	srv->max_clients = iarg->max_clients;
+	srv->cap_clients = cap_client;
 	return 0;
 
 out_err_events:
@@ -127,6 +134,56 @@ void ais_sock_tcp_srv_free(struct ais_sock_tcp_srv *srv)
 	memset(srv, 0, sizeof(*srv));
 }
 
+static int grow_clients_array(struct ais_sock_tcp_srv *srv)
+{
+	struct ais_sock_tcp_cli **new_clients;
+	size_t new_cap, l;
+
+	if (srv->cap_clients >= srv->max_clients)
+		return -ENOMEM;
+
+	if (srv->nclients < srv->cap_clients)
+		return 0;
+
+	if (!srv->cap_clients)
+		srv->cap_clients = 1;
+
+	new_cap = srv->cap_clients * 2;
+	if (new_cap > srv->max_clients)
+		new_cap = srv->max_clients;
+
+	new_clients = realloc(srv->clients, new_cap * sizeof(*srv->clients));
+	if (!new_clients)
+		return -ENOMEM;
+
+	/*
+	 * Zero out the new portion of the array.
+	 */
+	l = (new_cap - srv->cap_clients) * sizeof(*srv->clients);
+	memset(&new_clients[srv->cap_clients], 0, l);
+	srv->clients = new_clients;
+	srv->cap_clients = new_cap;
+	return 0;
+}
+
+static void shrink_clients_array(struct ais_sock_tcp_srv *srv)
+{
+	size_t nr_free_slot = srv->cap_clients - srv->nclients;
+	struct ais_sock_tcp_cli **new_clients;
+	size_t new_cap;
+
+	if (nr_free_slot < 256)
+		return;
+
+	new_cap = srv->nclients + 32;
+	new_clients = realloc(srv->clients, new_cap * sizeof(*srv->clients));
+	if (!new_clients)
+		return;
+
+	srv->clients = new_clients;
+	srv->cap_clients = new_cap;
+}
+
 static int __handle_event_tcp_srv(struct ais_sock_tcp_srv *srv)
 {
 	struct ais_sock_addr addr;
@@ -150,6 +207,10 @@ static int __handle_event_tcp_srv(struct ais_sock_tcp_srv *srv)
 	cli = calloc(1, sizeof(*cli));
 	if (!cli)
 		goto out_err_close;
+
+	r = grow_clients_array(srv);
+	if (r < 0)
+		goto out_err_free_cli;
 
 	/*
 	 * TODO(viro_ssfs): Make the buffer size configurable from the caller.
@@ -186,6 +247,7 @@ static int __handle_event_tcp_srv(struct ais_sock_tcp_srv *srv)
 
 	cli->idx = (uint32_t)srv->nclients++;
 	srv->clients[cli->idx] = cli;
+	assert(srv->nclients <= srv->cap_clients);
 	return 0;
 
 out_err_free_cli:
@@ -339,6 +401,7 @@ static void ais_sock_tcp_srv_close_cli(struct ais_sock_tcp_srv *srv, struct ais_
 	clients[last_idx] = NULL;
 	srv->nclients--;
 	ais_sock_tcp_cli_free(cli);
+	shrink_clients_array(srv);
 }
 
 static int handle_event_tcp_cli(struct ais_sock_tcp_srv *srv, struct epoll_event *ev, void *udata)

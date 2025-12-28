@@ -183,10 +183,10 @@ static int handle_req_state_recv_hdr(struct ais_http_req *req)
 	pctx->len = cli->rx_buf.len;
 	pctx->max_len = 4096; /* 4 KiB */
 	r = gwnet_http_req_hdr_parse(pctx, &req->hdr);
+	ais_buf_soft_advance(&cli->rx_buf, pctx->off);
 	if (r < 0)
 		return r;
 
-	ais_buf_soft_advance(&cli->rx_buf, pctx->off);
 	req->keep_alive = check_keep_alive(req);
 	req->state = AIS_HREQ_STATE_RECV_BODY;
 	return 0;

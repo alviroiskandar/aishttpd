@@ -35,6 +35,21 @@ static int setup_signal_handler(struct ais_http_ctx *ctx)
 	return r;
 }
 
+static int route_cb(struct ais_http_req *req)
+{
+	int r = 0;
+	ais_http_res_set_code(&req->res, 200);
+	r |= ais_http_res_add_hdr(&req->res, "Content-Type", "text/plain");
+	r |= ais_http_res_body_set_buf(&req->res, "Hello, World!\n");
+	return r;
+}
+
+static int accept_cb(struct ais_http_req *req, void *)
+{
+	ais_http_req_set_route_cb(req, &route_cb);
+	return 0;
+}
+
 int main(void)
 {
 	static const struct ais_http_srv_iarg iarg = {
@@ -62,6 +77,7 @@ int main(void)
 		return -r;
 	}
 
+	ais_http_req_set_accept_cb(&http_ctx, &accept_cb);
 	printf("Starting HTTP server on [%s]:%hu...\n", iarg.tcp.bind_addr, iarg.tcp.port);
 	r = ais_http_ctx_run(&http_ctx);
 	if (r < 0)

@@ -8,6 +8,7 @@
 
 #include "http_parser/gwnet_http1.h"
 #include "tcp.h"
+#include "file.h"
 
 #include <pthread.h>
 
@@ -35,6 +36,7 @@ struct ais_http_res_body {
 	uint8_t		type;
 	union {
 		struct ais_buf		buf;
+		struct ais_file		*file;
 	};
 };
 

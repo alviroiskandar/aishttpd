@@ -9,7 +9,8 @@ AISHTTPD_SOURCES := \
 	src/main.c \
 	src/http.c \
 	src/tcp.c \
-	src/buf.c
+	src/buf.c \
+	src/file.c
 AISHTTPD_OBJECTS := $(AISHTTPD_SOURCES:.c=.o)
 AISHTTPD_DEPS := $(AISHTTPD_SOURCES:.c=.d)
 

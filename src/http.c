@@ -565,11 +565,27 @@ int ais_http_res_body_set_bufl(struct ais_http_res *res, const void *buf, size_t
 	return ais_buf_append(&b->buf, buf, len);
 }
 
+int ais_http_res_body_set_file(struct ais_http_res *res, struct ais_file *f)
+{
+	struct ais_http_res_body *b = &res->body;
+
+	if (b->type != AIS_RES_BODY_TYPE_NONE)
+		ais_http_res_body_free(b);
+
+	b->type = AIS_RES_BODY_TYPE_FILE;
+	b->file = f;
+	b->file_off = 0;
+	return 0;
+}
+
 void ais_http_res_body_free(struct ais_http_res_body *b)
 {
 	switch (b->type) {
 	case AIS_RES_BODY_TYPE_BUF:
 		ais_buf_free(&b->buf);
+		break;
+	case AIS_RES_BODY_TYPE_FILE:
+		ais_file_put(b->file);
 		break;
 	default:
 		break;

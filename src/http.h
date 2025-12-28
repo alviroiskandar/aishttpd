@@ -36,7 +36,10 @@ struct ais_http_res_body {
 	uint8_t		type;
 	union {
 		struct ais_buf		buf;
-		struct ais_file		*file;
+		struct {
+			struct ais_file		*file;
+			uint64_t		file_off;
+		};
 	};
 };
 
@@ -80,6 +83,7 @@ void ais_http_ctx_stop(struct ais_http_ctx *ctx);
 const char *ais_http_get_method_name(int m);
 int ais_http_res_body_set_buf(struct ais_http_res *res, const void *buf);
 int ais_http_res_body_set_bufl(struct ais_http_res *res, const void *buf, size_t len);
+int ais_http_res_body_set_file(struct ais_http_res *res, struct ais_file *f);
 void ais_http_res_body_free(struct ais_http_res_body *b);
 
 static inline void ais_http_req_set_route_cb(struct ais_http_req *req, ais_http_route_cb_t cb)

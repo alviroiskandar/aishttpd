@@ -138,6 +138,8 @@ static void ais_http_res_free(struct ais_http_res *res)
 		return;
 
 	gwnet_http_res_hdr_free(&res->hdr);
+	if (res->hdr.reason)
+		free(res->hdr.reason);
 	memset(res, 0, sizeof(*res));
 }
 
@@ -218,35 +220,13 @@ static int handle_req_state_recv_body(struct ais_http_req *req)
 	return r;
 }
 
-static int calculate_required_size(struct ais_http_res *res)
-{
-	struct gwnet_http_res_hdr *hdr = &res->hdr;
-	size_t i;
-	int n;
-
-	n = (int) (sizeof("HTTP/1.1 ") - 1);
-	n += 3; /* status code */
-	n += 1; /* space */
-	n += res->hdr.reason ? strlen(res->hdr.reason) : 0;
-	n += 2; /* \r\n */
-	for (i = 0; i < hdr->fields.nr; i++) {
-		n += strlen(hdr->fields.ff[i].key);
-		n += 2; /* ": " */
-		n += strlen(hdr->fields.ff[i].val);
-		n += 2; /* \r\n */
-	}
-	n += 2; /* final \r\n */
-	return n;
-}
-
 static int handle_req_state_build_res(struct ais_http_req *req)
 {
 	struct ais_sock_tcp_cli *cli = req->tcp_cli;
 	struct ais_http_res *res = &req->res;
 	struct ais_buf *txb = &cli->tx_buf;
-	size_t cap, len, i;
-	const char *conn;
-	char *buf;
+	const char *tmp;
+	size_t i;
 	int r;
 
 	if (!res->hdr.reason) {
@@ -255,34 +235,31 @@ static int handle_req_state_build_res(struct ais_http_req *req)
 			return -ENOMEM;
 	}
 
-	conn = req->keep_alive ? "keep-alive" : "close";
-	r = ais_http_res_add_hdr(res, "Connection", conn);
+	tmp = res->hdr.reason ? res->hdr.reason : translate_http_code(res->hdr.code);
+	r = ais_buf_apfmt(txb,
+			  "HTTP/%s %u %s\r\n"
+			  "Server: aishttpd v0.0.1\r\n",
+			  (res->hdr.version == GWNET_HTTP_VER_1_1) ? "1.1" : "1.0",
+			  res->hdr.code, tmp);
 	if (r < 0)
 		return r;
 
-	r = calculate_required_size(res);
-	if (txb->cap < (size_t)r) {
-		r = ais_buf_prepare_need(txb, (size_t)r);
-		if (r < 0)
-			return r;
+	tmp = req->keep_alive ? "keep-alive" : "close";
+	r |= ais_buf_append(txb, "Connection: ", 12);
+	r |= ais_buf_append(txb, tmp, strlen(tmp));
+	r |= ais_buf_append(txb, "\r\n", 2);
+	for (i = 0; i < res->hdr.fields.nr; i++) {
+		struct gwnet_http_hdr_field *f = &res->hdr.fields.ff[i];
+		r |= ais_buf_append(txb, f->key, strlen(f->key));
+		r |= ais_buf_append(txb, ": ", 2);
+		r |= ais_buf_append(txb, f->val, strlen(f->val));
+		r |= ais_buf_append(txb, "\r\n", 2);
 	}
+	r |= ais_buf_apfmt(txb, "\r\n");
 
-	/*
-	 * Build the response.
-	 */
-	buf = txb->buf + txb->len;
-	cap = txb->cap - txb->len;
-	len = 0;
-	len += snprintf(buf + len, cap - len, "HTTP/1.1 %hu %s\r\n",
-			req->res.hdr.code, req->res.hdr.reason);
+	if (r)
+		return -ENOMEM;
 
-	for (i = 0; i < req->res.hdr.fields.nr; i++) {
-		len += snprintf(buf + len, cap - len, "%s: %s\r\n",
-				req->res.hdr.fields.ff[i].key,
-				req->res.hdr.fields.ff[i].val);
-	}
-	len += snprintf(buf + len, cap - len, "\r\n");
-	txb->len += len;
 	req->state = AIS_HREQ_STATE_SEND_RES;
 	return 0;
 }

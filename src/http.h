@@ -48,6 +48,8 @@ struct ais_http_res {
 	struct ais_http_res_body	body;
 };
 
+struct ais_http_wrk;
+
 struct ais_http_req {
 	uint8_t				state;
 	ais_http_route_cb_t		cb_route;
@@ -55,13 +57,17 @@ struct ais_http_req {
 	struct gwnet_http_req_hdr	hdr;
 	struct ais_sock_tcp_cli		*tcp_cli;
 	struct ais_http_res		res;
+	struct ais_http_wrk		*wrk;
 	bool				keep_alive;
 	char				addr[INET6_ADDRSTRLEN + sizeof(":65535")];
 };
 
+struct ais_http_ctx;
+
 struct ais_http_wrk {
 	struct ais_sock_tcp_srv		tcp_srv;
 	pthread_t			thread;
+	struct ais_http_ctx		*http_ctx;
 };
 
 struct ais_http_ctx {

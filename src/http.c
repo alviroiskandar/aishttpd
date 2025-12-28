@@ -416,7 +416,8 @@ static void http_close_callback(struct ais_sock_tcp_cli *cli)
 
 static int http_accept_callback(struct ais_sock_tcp_cli *cli, void *arg)
 {
-	struct ais_http_ctx *http_ctx = arg;
+	struct ais_http_wrk *wrk = arg;
+	struct ais_http_ctx *http_ctx = wrk->http_ctx;
 	struct ais_http_req *req;
 	int r;
 
@@ -426,6 +427,7 @@ static int http_accept_callback(struct ais_sock_tcp_cli *cli, void *arg)
 
 	cli->user_data = req;
 	req->tcp_cli = cli;
+	req->wrk = wrk;
 
 	store_str_ip(&cli->addr, req->addr, sizeof(req->addr));
 	ais_sock_tcp_cli_set_cb_rx(cli, &http_recv_callback);
@@ -458,7 +460,8 @@ static int ais_http_wrk_init(struct ais_http_ctx *http_ctx, struct ais_http_wrk 
 		return r;
 
 	ais_sock_tcp_srv_set_cb_accept(&wrk->tcp_srv, &http_accept_callback);
-	ais_sock_tcp_srv_set_cb_accept_arg(&wrk->tcp_srv, http_ctx);
+	ais_sock_tcp_srv_set_cb_accept_arg(&wrk->tcp_srv, wrk);
+	wrk->http_ctx = http_ctx;
 	return 0;
 }
 

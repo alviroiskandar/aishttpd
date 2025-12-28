@@ -239,7 +239,7 @@ static int handle_req_state_build_res(struct ais_http_req *req)
 	r = ais_buf_apfmt(txb,
 			  "HTTP/%s %u %s\r\n"
 			  "Server: aishttpd v0.0.1\r\n",
-			  (res->hdr.version == GWNET_HTTP_VER_1_1) ? "1.1" : "1.0",
+			  (req->hdr_req.version == GWNET_HTTP_VER_1_1) ? "1.1" : "1.0",
 			  res->hdr.code, tmp);
 	if (r < 0)
 		return r;

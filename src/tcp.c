@@ -268,10 +268,10 @@ static int handle_event_tcp_cli_send(struct ais_sock_tcp_cli *cli)
 	}
 
 	assert((size_t)send_ret <= cli->tx_buf.len);
+	ais_buf_soft_advance(&cli->tx_buf, (size_t)send_ret);
 	if (cli->cb_tx)
 		r = cli->cb_tx(cli, send_ret);
 
-	ais_buf_soft_advance(&cli->tx_buf, (size_t)send_ret);
 	return (r < 0) ? r : 0;
 }
 

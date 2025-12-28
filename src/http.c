@@ -410,7 +410,7 @@ static int http_send_callback(struct ais_sock_tcp_cli *cli, ssize_t sent_len)
 	if (r < 0 && r != -EAGAIN)
 		return r;
 
-	if (req->state == AIS_HREQ_STATE_DONE && !req->keep_alive)
+	if (cli->tx_buf.len == 0 && !req->keep_alive)
 		return -ECONNABORTED;
 
 	return 0;

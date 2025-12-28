@@ -14,10 +14,6 @@ struct ais_http_req;
 typedef int (*ais_http_route_cb_t)(struct ais_http_req *req);
 typedef int (*ais_http_accept_cb_t)(struct ais_http_req *req, void *arg);
 
-struct ais_http_res {
-	struct gwnet_http_res_hdr	hdr;
-};
-
 enum {
 	AIS_HREQ_STATE_INIT      = 0,
 	AIS_HREQ_STATE_RECV_HDR  = 1,
@@ -27,11 +23,29 @@ enum {
 	AIS_HREQ_STATE_DONE      = 5,
 };
 
+enum {
+	AIS_RES_BODY_TYPE_NONE   = 0,
+	AIS_RES_BODY_TYPE_BUF    = 1,
+	AIS_RES_BODY_TYPE_FILE   = 2,
+};
+
+struct ais_http_res_body {
+	uint8_t		type;
+	union {
+		struct ais_buf		buf;
+	};
+};
+
+struct ais_http_res {
+	struct gwnet_http_res_hdr	hdr;
+	struct ais_http_res_body	body;
+};
+
 struct ais_http_req {
 	uint8_t				state;
 	ais_http_route_cb_t		cb_route;
 	struct gwnet_http_hdr_pctx	hdr_pctx;
-	struct gwnet_http_req_hdr	hdr_req;
+	struct gwnet_http_req_hdr	hdr;
 	struct ais_sock_tcp_cli		*tcp_cli;
 	struct ais_http_res		res;
 	bool				keep_alive;
@@ -53,6 +67,9 @@ int ais_http_ctx_run(struct ais_http_ctx *ctx);
 void ais_http_ctx_free(struct ais_http_ctx *ctx);
 void ais_http_ctx_stop(struct ais_http_ctx *ctx);
 const char *ais_http_get_method_name(int m);
+int ais_http_res_body_set_buf(struct ais_http_res *res, const void *buf);
+int ais_http_res_body_set_bufl(struct ais_http_res *res, const void *buf, size_t len);
+void ais_http_res_body_free(struct ais_http_res_body *b);
 
 static inline void ais_http_req_set_route_cb(struct ais_http_req *req, ais_http_route_cb_t cb)
 {

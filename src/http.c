@@ -160,7 +160,7 @@ static bool check_keep_alive(struct ais_http_req *req)
 	 */
 	const char *conn;
 
-	conn = gwnet_http_hdr_fields_get(&req->hdr_req.fields, "connection");
+	conn = gwnet_http_hdr_fields_get(&req->hdr.fields, "connection");
 	if (conn)
 		return (strcasecmp(conn, "keep-alive") == 0);
 
@@ -169,7 +169,7 @@ static bool check_keep_alive(struct ais_http_req *req)
 	 *   - HTTP/1.1 defaults to keep-alive.
 	 *   - HTTP/1.0 defaults to close.
 	 */
-	return (req->hdr_req.version == GWNET_HTTP_VER_1_1);
+	return (req->hdr.version == GWNET_HTTP_VER_1_1);
 }
 
 static int handle_req_state_recv_hdr(struct ais_http_req *req)
@@ -182,7 +182,7 @@ static int handle_req_state_recv_hdr(struct ais_http_req *req)
 	pctx->buf = cli->rx_buf.buf;
 	pctx->len = cli->rx_buf.len;
 	pctx->max_len = 4096; /* 4 KiB */
-	r = gwnet_http_req_hdr_parse(pctx, &req->hdr_req);
+	r = gwnet_http_req_hdr_parse(pctx, &req->hdr);
 	if (r < 0)
 		return r;
 
@@ -231,7 +231,18 @@ static const char *gen_date_buf(char *buf)
 	return buf;
 }
 
-static int handle_req_state_build_res(struct ais_http_req *req)
+static int set_content_length_hdr(struct ais_http_res *res, struct ais_buf *txb)
+{
+	switch (res->body.type) {
+	case AIS_RES_BODY_TYPE_BUF:
+		return ais_buf_apfmt(txb, "Content-Length: %zu\r\n", res->body.buf.len);
+		break;
+	default:
+		return 0;
+	}
+}
+
+static int construct_res_hdr(struct ais_http_req *req)
 {
 	struct ais_sock_tcp_cli *cli = req->tcp_cli;
 	struct ais_http_res *res = &req->res;
@@ -252,7 +263,7 @@ static int handle_req_state_build_res(struct ais_http_req *req)
 			  "HTTP/%s %u %s\r\n"
 			  "Server: aishttpd v0.0.1\r\n"
 			  "Date: %s\r\n",
-			  (req->hdr_req.version == GWNET_HTTP_VER_1_1) ? "1.1" : "1.0",
+			  (req->hdr.version == GWNET_HTTP_VER_1_1) ? "1.1" : "1.0",
 			  res->hdr.code, tmp, gen_date_buf(date_buf));
 	if (r < 0)
 		return r;
@@ -261,6 +272,7 @@ static int handle_req_state_build_res(struct ais_http_req *req)
 	r |= ais_buf_append(txb, "Connection: ", 12);
 	r |= ais_buf_append(txb, tmp, strlen(tmp));
 	r |= ais_buf_append(txb, "\r\n", 2);
+	r |= set_content_length_hdr(res, txb);
 	for (i = 0; i < res->hdr.fields.nr; i++) {
 		struct gwnet_http_hdr_field *f = &res->hdr.fields.ff[i];
 		r |= ais_buf_append(txb, f->key, strlen(f->key));
@@ -270,8 +282,43 @@ static int handle_req_state_build_res(struct ais_http_req *req)
 	}
 	r |= ais_buf_apfmt(txb, "\r\n");
 
-	if (r)
-		return -ENOMEM;
+	return r ? -ENOMEM : 0;
+}
+
+static int construct_res_body(struct ais_http_req *req)
+{
+	struct ais_sock_tcp_cli *cli = req->tcp_cli;
+	struct ais_http_res *res = &req->res;
+	struct ais_http_res_body *b = &res->body;
+	struct ais_buf *txb = &cli->tx_buf;
+	int r = 0;
+
+	switch (res->body.type) {
+	case AIS_RES_BODY_TYPE_BUF:
+		r = ais_buf_append(txb, b->buf.buf, b->buf.len);
+		break;
+	case AIS_RES_BODY_TYPE_NONE:
+		break;
+	default:
+		r = -EINVAL;
+		break;
+	}
+
+	ais_http_res_body_free(&res->body);
+	return r;
+}
+
+static int handle_req_state_build_res(struct ais_http_req *req)
+{
+	int r;
+
+	r = construct_res_hdr(req);
+	if (r < 0)
+		return r;
+
+	r = construct_res_body(req);
+	if (r < 0)
+		return r;
 
 	req->state = AIS_HREQ_STATE_SEND_RES;
 	return 0;
@@ -280,9 +327,9 @@ static int handle_req_state_build_res(struct ais_http_req *req)
 static void reset_req(struct ais_http_req *req)
 {
 	gwnet_http_hdr_pctx_free(&req->hdr_pctx);
-	gwnet_http_req_hdr_free(&req->hdr_req);
+	gwnet_http_req_hdr_free(&req->hdr);
 	ais_http_res_free(&req->res);
-	memset(&req->hdr_req, 0, sizeof(req->hdr_req));
+	memset(&req->hdr, 0, sizeof(req->hdr));
 	memset(&req->hdr_pctx, 0, sizeof(req->hdr_pctx));
 }
 
@@ -376,7 +423,7 @@ static void ais_http_req_free(struct ais_http_req *req)
 		return;
 
 	gwnet_http_hdr_pctx_free(&req->hdr_pctx);
-	gwnet_http_req_hdr_free(&req->hdr_req);
+	gwnet_http_req_hdr_free(&req->hdr);
 	ais_http_res_free(&req->res);
 	free(req);
 }
@@ -447,4 +494,33 @@ void ais_http_ctx_free(struct ais_http_ctx *ctx)
 void ais_http_ctx_stop(struct ais_http_ctx *ctx)
 {
 	ais_sock_tcp_srv_stop(&ctx->tcp_srv);
+}
+
+int ais_http_res_body_set_buf(struct ais_http_res *res, const void *buf)
+{
+	return ais_http_res_body_set_bufl(res, buf, strlen(buf));
+}
+
+int ais_http_res_body_set_bufl(struct ais_http_res *res, const void *buf, size_t len)
+{
+	struct ais_http_res_body *b = &res->body;
+
+	if (b->type != AIS_RES_BODY_TYPE_NONE)
+		ais_http_res_body_free(b);
+
+	b->type = AIS_RES_BODY_TYPE_BUF;
+	return ais_buf_append(&b->buf, buf, len);
+}
+
+void ais_http_res_body_free(struct ais_http_res_body *b)
+{
+	switch (b->type) {
+	case AIS_RES_BODY_TYPE_BUF:
+		ais_buf_free(&b->buf);
+		break;
+	default:
+		break;
+	}
+	memset(b, 0, sizeof(*b));
+	b->type = AIS_RES_BODY_TYPE_NONE;
 }

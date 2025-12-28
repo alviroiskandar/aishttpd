@@ -264,6 +264,15 @@ static int handle_req_state_build_res(struct ais_http_req *req)
 	return 0;
 }
 
+static void reset_req(struct ais_http_req *req)
+{
+	gwnet_http_hdr_pctx_free(&req->hdr_pctx);
+	gwnet_http_req_hdr_free(&req->hdr_req);
+	ais_http_res_free(&req->res);
+	memset(&req->hdr_req, 0, sizeof(req->hdr_req));
+	memset(&req->hdr_pctx, 0, sizeof(req->hdr_pctx));
+}
+
 static int handle_req_state_send_res(struct ais_http_req *req)
 {
 	struct ais_sock_tcp_cli *cli = req->tcp_cli;
@@ -272,7 +281,7 @@ static int handle_req_state_send_res(struct ais_http_req *req)
 	if (txb->len > 0)
 		return -EAGAIN;
 
-	ais_http_res_free(&req->res);
+	reset_req(req);
 	req->state = AIS_HREQ_STATE_DONE;
 	return 0;
 }

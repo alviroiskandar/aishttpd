@@ -12,15 +12,6 @@
 #include <assert.h>
 #include <time.h>
 
-/*
- * TODO(viro_ssfs):
- *   - Make this file more modular.
- *   - Implement proper HTTP request parsing.
- *   - Implement HTTP routing and handling different methods.
- *   - and many more...
- *
- */
-
 static void store_str_ip(struct ais_sock_addr *addr, char *buf, size_t buf_len)
 {
 	size_t len;

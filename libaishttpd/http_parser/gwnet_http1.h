@@ -11,6 +11,10 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 enum {
 	GWNET_HTTP_HDR_TYPE_REQ	= 0,
 	GWNET_HTTP_HDR_TYPE_RES	= 1,
@@ -393,5 +397,9 @@ int gwnet_http_body_parse_chunked(struct gwnet_http_body_pctx *ctx,
  * Run all tests related to the HTTP/1.x parser.
  */
 void gwnet_http_run_tests(void);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif
 
 #endif /* #ifndef GWNET_HTTP1_H */

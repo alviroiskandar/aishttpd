@@ -12,6 +12,10 @@
 #include <pthread.h>
 #include <time.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct ais_file {
 	_Atomic(int32_t)	refcnt;
 	int			fd;
@@ -40,5 +44,9 @@ int ais_file_table_init(struct ais_file_table *tb, size_t max);
 int ais_file_table_get_or_open(struct ais_file_table *tb,
 			       const char *path,
 			       struct ais_file **out);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif
 
 #endif /* #ifndef AISHTTPD_FILE_H */

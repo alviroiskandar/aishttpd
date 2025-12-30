@@ -9,6 +9,10 @@
 #include <stddef.h>
 #include <assert.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct ais_buf {
 	char	*buf;
 	char	*orig_buf;
@@ -33,5 +37,9 @@ int ais_buf_prepare_need(struct ais_buf *b, size_t need);
 int ais_buf_apfmt(struct ais_buf *b, const char *fmt, ...);
 int ais_buf_append(struct ais_buf *b, const void *data, size_t len);
 void ais_buf_move(struct ais_buf *dst, struct ais_buf *src);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif
 
 #endif /* #ifndef AISHTTPD_BUF_H */

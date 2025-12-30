@@ -1,0 +1,70 @@
+aishttpd
+--------
+
+Date: Mon, 22 Dec 2025 04:31:15 +0700
+From: Alviro Iskandar Setiawan <alviro.iskandar@gnuweeb.org>
+Subject: Introducing aishttpd
+
+Hello,
+
+This is the aishttpd project. The naming "AIS" comes from my initials,
+Alviro Iskandar Setiawan. aishttpd is a simple HTTP server written in C.
+I started this project on Sunday, December 21, 2025. The main goal of
+this project is to warm up my socket programming skills.
+
+On December 21, 2025, I met Misa on a newly created IRC channel. After a
+brief conversation, Misa showed me a small HTTP server project written
+in C++. The discussion with Misa inspired me to create my own HTTP
+server in C/C++ too.
+
+Recall that I am currently heavily working on socket programming on
+Linux. So writing my own HTTP server is very relevant to my current
+exploration path.  Doing it as a hobby in my free time is fun.
+
+aishttpd is still in its very early stage. Currently, it only returns an
+"HTTP 200 OK" response with a "Hello, World!" plain-text body for every
+incoming HTTP request. More features will be added in the future.
+
+Note that my focus right now is on the socket programming aspect. So I
+might not implement the HTTP parser myself. Instead, I will consider the
+picohttpparser library by the h2o project as the HTTP parser component:
+
+        https://github.com/h2o/picohttpparser
+
+I plan to plug picohttpparser into aishttpd to handle HTTP parsing. This
+way, I can focus more on socket programming.
+
+Currently, aishttpd can handle multiple clients using the epoll syscall
+on Linux. I plan to add more features in the future, such as serving
+static files, logging, and support for configuration files.
+
+Once the project matures enough, I will start adding support for
+keep-alive, chunked transfer encoding, and other HTTP/1.1 features.
+
+Also, adding io_uring support is on my radar ;-)
+
+Currently, this project has almost no dependencies. It only depends on
+the standard C library and Linux syscalls. If you want to try it out,
+you can do the following:
+
+        git clone https://github.com/alviroiskandar/aishttpd.git;
+        cd aishttpd;
+        make -j$(nproc);
+        ./aishttpd;
+
+Then you can open your web browser and navigate to:
+
+        http://localhost:9980
+
+Or just use curl.
+
+I hope you find this project interesting. Feel free to reach out to me
+if you have any questions or suggestions.
+
+Thank you for your attention!
+
+Best regards,
+-- 
+Software Engineer & ITPM Officer
+Alviro Iskandar Setiawan <alviro.iskandar@gnuweeb.org>
++1 908 777 0074

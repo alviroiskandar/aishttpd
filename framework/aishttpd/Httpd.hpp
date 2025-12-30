@@ -12,6 +12,8 @@
 #include <unordered_map>
 #include <string>
 
+#include "HttpReq.hpp"
+
 namespace aishttpd {
 
 enum {
@@ -26,30 +28,6 @@ enum {
 	AIS_HTTP_TRACE   = GWNET_HTTP_METHOD_TRACE,
 	AIS_HTTP_CONNECT = GWNET_HTTP_METHOD_CONNECT,
 	AIS_HTTP_MAX     = AIS_HTTP_CONNECT + 1,
-};
-
-class Httpd;
-
-class HttpReq {
-private:
-	struct ais_http_req *req_;
-
-public:
-	inline HttpReq(struct ais_http_req *r):
-		req_(r)
-	{
-	}
-
-	~HttpReq(void) = default;
-
-	inline struct ais_http_req *get_req(void)
-	{
-		return req_;
-	}
-
-	void showHTMLFile(Httpd *h, HttpReq *hr, const std::string &file_path);
-
-	friend class Httpd;
 };
 
 class HttpRoute {

@@ -6,11 +6,11 @@
 #include <cstring>
 #include <cstdio>
 #include <cerrno>
-#include <signal.h>
+#include "signal.hpp"
 
 using namespace aishttpd;
 
-static void set_freezing_night_router(Httpd *h)
+static void setHttpRouters(Httpd *h)
 {
 	auto r = std::make_shared<Router>("www.freezing-night.com");
 
@@ -23,48 +23,24 @@ static void set_freezing_night_router(Httpd *h)
 	h->addRouter(r);
 }
 
-static int setup_signal_handler(Httpd *h);
-
 int main(void)
 {
-	Httpd h;
+	try {
+		Httpd h;
 
-	setup_signal_handler(&h);
-	set_freezing_night_router(&h);
+		setupSignalHandler(&h);
+		setHttpRouters(&h);
 
-	h.setBindAddr("::", 9980);
-	h.setNrWorkers(4);
-	printf("Starting HTTP server at [::]:9980...\n");
-	h.start();
-	return 0;
-}
+		h.setBindAddr("::");
+		h.setPort(9980);
+		h.setNrWorkers(4);
 
-static Httpd *g_h = nullptr;
-
-static void handle_signal(int sig)
-{
-	if (g_h) {
-		sig = write(STDOUT_FILENO, "\nStopping HTTP server...\n", 25);
-		g_h->stop();
-		g_h = nullptr;
+		printf("Starting HTTP server at [::]:9980...\n");
+		h.start();
+		printf("HTTP server stopped.\n");
+		return 0;
+	} catch (const std::exception &e) {
+		fprintf(stderr, "Error: %s\n", e.what());
+		return 1;
 	}
-
-	(void)sig;
-}
-
-static int setup_signal_handler(Httpd *h)
-{
-	struct sigaction sa;
-	int r = 0;
-
-	memset(&sa, 0, sizeof(sa));
-	sa.sa_handler = handle_signal;
-
-	g_h = h;
-	r |= sigaction(SIGINT, &sa, NULL);
-	r |= sigaction(SIGTERM, &sa, NULL);
-	r |= sigaction(SIGHUP, &sa, NULL);
-	sa.sa_handler = SIG_IGN;
-	r |= sigaction(SIGPIPE, &sa, NULL);
-	return r ? -errno : 0;
 }

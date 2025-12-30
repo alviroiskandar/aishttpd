@@ -3,8 +3,8 @@
  * Copyright (C) 2025  Alviro Iskandar Setiawan <alviro.iskandar@gnuweeb.org>
  * Copyright (C) 2025  Ammar Faizi <ammarfaizi2@gnuweeb.org>
  */
-#ifndef FRAMEWORK__AISHTTPD__HTTPROUTE_HPP
-#define FRAMEWORK__AISHTTPD__HTTPROUTE_HPP
+#ifndef FRAMEWORK__AISHTTPD__ROUTE_HPP
+#define FRAMEWORK__AISHTTPD__ROUTE_HPP
 
 #include <functional>
 #include <string>
@@ -12,29 +12,29 @@
 namespace aishttpd {
 
 class Httpd;
-class HttpReq;
+class Req;
 
-class HttpRoute {
+class Route {
 private:
-	std::function<int(Httpd *, HttpReq *)> cb_;
+	std::function<int(Httpd *, Req *)> cb_;
 
-	inline int invoke(Httpd *h, HttpReq *r)
+	inline int invoke(Httpd *h, Req *r)
 	{
 		return cb_(h, r);
 	}
 
 public:
-	inline HttpRoute(std::function<int(Httpd *, HttpReq *)> cb):
+	inline Route(std::function<int(Httpd *, Req *)> cb):
 		cb_(std::move(cb))
 	{
 	}
 
-	HttpRoute(void) = default;
+	Route(void) = default;
 
 	friend class Httpd;
-	friend class HttpRouter;
+	friend class Router;
 };
 
 } /* namespace aishttpd */
 
-#endif /* #ifndef FRAMEWORK__AISHTTPD__HTTPROUTE_HPP */
+#endif /* #ifndef FRAMEWORK__AISHTTPD__ROUTE_HPP */

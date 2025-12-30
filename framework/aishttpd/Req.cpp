@@ -9,7 +9,7 @@
 
 namespace aishttpd {
 
-void HttpReq::showHTMLFile(Httpd *h, HttpReq *hr, const std::string &file_path)
+void Req::showHTMLFile(Httpd *h, Req *hr, const std::string &file_path)
 {
 	struct ais_file_table *ftb = &h->http_ctx_.file_table;
 	ais_http_req *req = hr->get_req();

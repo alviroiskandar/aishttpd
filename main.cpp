@@ -12,9 +12,9 @@ using namespace aishttpd;
 
 static void set_freezing_night_router(Httpd *h)
 {
-	auto r = std::make_shared<HttpRouter>("www.freezing-night.com");
+	auto r = std::make_shared<Router>("www.freezing-night.com");
 
-	r->addRoute(AIS_HTTP_GET, "/", [](Httpd *h, HttpReq *r) -> int {
+	r->addRoute(AIS_HTTP_GET, "/", [](Httpd *h, Req *r) -> int {
 		r->showHTMLFile(h, r, "index.html");
 		return 0;
 	});

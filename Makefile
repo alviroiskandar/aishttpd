@@ -21,9 +21,9 @@ LIBAISHTTPD_DEPS := $(LIBAISHTTPD_SOURCES:.c=.c.d)
 
 AISHTTPD_SOURCES := \
 	framework/aishttpd/Httpd.cpp \
-	framework/aishttpd/HttpReq.cpp \
-	framework/aishttpd/HttpRoute.cpp \
-	framework/aishttpd/HttpRouter.cpp \
+	framework/aishttpd/Req.cpp \
+	framework/aishttpd/Route.cpp \
+	framework/aishttpd/Router.cpp \
 	main.cpp
 AISHTTPD_OBJECTS := $(AISHTTPD_SOURCES:.cpp=.cpp.o)
 AISHTTPD_DEPS := $(AISHTTPD_SOURCES:.cpp=.cpp.d)

@@ -12,9 +12,9 @@
 #include <unordered_map>
 #include <string>
 
-#include "HttpReq.hpp"
-#include "HttpRoute.hpp"
-#include "HttpRouter.hpp"
+#include "Req.hpp"
+#include "Route.hpp"
+#include "Router.hpp"
 
 namespace aishttpd {
 
@@ -36,12 +36,12 @@ class Httpd {
 private:
 	struct ais_http_ctx http_ctx_;
 	std::unique_ptr<struct ais_http_srv_iarg> iarg_;
-	std::unordered_map<std::string, std::shared_ptr<HttpRouter>> routers_;
-	std::shared_ptr<HttpRouter> default_router_ = nullptr;
+	std::unordered_map<std::string, std::shared_ptr<Router>> routers_;
+	std::shared_ptr<Router> default_router_ = nullptr;
 
 	static int HttpdAcceptCb(struct ais_http_req *req, void *arg);
 	static int HttpdRouteCb(struct ais_http_req *req);
-	static int InvokeDefaultRouter(Httpd *h, aishttpd::HttpReq *r);
+	static int InvokeDefaultRouter(Httpd *h, aishttpd::Req *r);
 
 public:
 	Httpd(void);
@@ -74,12 +74,12 @@ public:
 		iarg_->tcp.epoll_nevents = epoll_nevents;
 	}
 
-	inline void setDefaultRouter(std::shared_ptr<HttpRouter> router)
+	inline void setDefaultRouter(std::shared_ptr<Router> router)
 	{
 		default_router_ = router;
 	}
 
-	inline void addRouter(std::shared_ptr<HttpRouter> router)
+	inline void addRouter(std::shared_ptr<Router> router)
 	{
 		routers_.emplace(router->get_host(), router);
 		if (!default_router_)
@@ -89,7 +89,7 @@ public:
 	void start(void);
 	void stop(void);
 
-	friend class HttpReq;
+	friend class Req;
 };
 
 } /* namespace aishttpd */

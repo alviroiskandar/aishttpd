@@ -9,20 +9,20 @@
 
 namespace aishttpd {
 
-void HttpRouter::addRoute(int method, const std::string &path,
-			   std::function<int(Httpd *, HttpReq *)> cb)
+void Router::addRoute(int method, const std::string &path,
+			   std::function<int(Httpd *, Req *)> cb)
 {
 	auto it = routes_.find(path);
 	if (it == routes_.end()) {
-		std::vector<HttpRoute> v(AIS_HTTP_MAX);
-		v[method] = HttpRoute(std::move(cb));
+		std::vector<Route> v(AIS_HTTP_MAX);
+		v[method] = Route(std::move(cb));
 		routes_.emplace(path, v);
 	} else {
-		it->second[method] = HttpRoute(std::move(cb));
+		it->second[method] = Route(std::move(cb));
 	}
 }
 
-int HttpRouter::invoke(int method, const std::string &path, Httpd *h, HttpReq *r)
+int Router::invoke(int method, const std::string &path, Httpd *h, Req *r)
 {
 	auto it = routes_.find(path);
 	if (it == routes_.end()) {

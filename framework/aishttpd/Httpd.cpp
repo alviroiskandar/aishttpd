@@ -25,7 +25,7 @@ Httpd::~Httpd(void)
 	ais_http_ctx_free(&http_ctx_);
 }
 
-int Httpd::InvokeDefaultRouter(Httpd *h, HttpReq *hr)
+int Httpd::InvokeDefaultRouter(Httpd *h, Req *hr)
 {
 	if (h->default_router_ == nullptr) {
 		/*
@@ -45,7 +45,7 @@ int Httpd::HttpdRouteCb(struct ais_http_req *req)
 	Httpd *h = static_cast<Httpd *>(req->user_data);
 	gwnet_http_req_hdr *hdr = &req->hdr;
 	const char *host;
-	HttpReq hr(req);
+	Req hr(req);
 
 	host = gwnet_http_hdr_fields_get(&hdr->fields, "host");
 	if (!host)

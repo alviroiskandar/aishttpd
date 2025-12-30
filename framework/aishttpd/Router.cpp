@@ -24,8 +24,8 @@ void Router::addRoute(int method, const std::string &path,
 
 int Router::invoke(int method, const std::string &path, Httpd *h, Req *r)
 {
-	ais_http_req *req = r->get_req();
-	ais_http_res *res = &req->res;
+	struct ais_http_req *req = r->get_req();
+	struct ais_http_res *res = &req->res;
 
 	auto it = routes_.find(path);
 	if (it == routes_.end()) {

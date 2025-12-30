@@ -34,7 +34,7 @@ int Httpd::InvokeDefaultRouter(Httpd *h, Req *hr)
 		return -ENOENT;
 	}
 
-	gwnet_http_req_hdr *hdr = &hr->get_req()->hdr;
+	struct gwnet_http_req_hdr *hdr = &hr->get_req()->hdr;
 	const char *path = hdr->path ? hdr->path : "/";
 	return h->default_router_->invoke(hdr->method, path, h, hr);
 }
@@ -43,7 +43,7 @@ int Httpd::InvokeDefaultRouter(Httpd *h, Req *hr)
 int Httpd::HttpdRouteCb(struct ais_http_req *req)
 {
 	Httpd *h = static_cast<Httpd *>(req->user_data);
-	gwnet_http_req_hdr *hdr = &req->hdr;
+	struct gwnet_http_req_hdr *hdr = &req->hdr;
 	const char *host;
 	Req hr(req);
 

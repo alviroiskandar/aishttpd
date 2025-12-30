@@ -13,7 +13,7 @@ namespace aishttpd {
 void Req::showFile(Httpd *h, Req *hr, const std::string &file_path)
 {
 	struct ais_file_table *ftb = &h->http_ctx_.file_table;
-	ais_http_req *req = hr->get_req();
+	struct ais_http_req *req = hr->get_req();
 	struct ais_http_res *res = &req->res;
 	char ext[32];
 	int r = 0;

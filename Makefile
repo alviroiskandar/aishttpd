@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0-only
 CC := gcc
 CXX := g++
-CFLAGS := -Wall -Wextra -O2 -ggdb3 -D_GNU_SOURCE
+CFLAGS := -Wall -Wextra -O2 -ggdb3 -std=gnu11 -D_GNU_SOURCE
 LDFLAGS := -O2 -ggdb3
 DEPFLAGS := -MMD -MP
 AISHTTPD_SOURCES := \

@@ -14,6 +14,7 @@
 
 #include "HttpReq.hpp"
 #include "HttpRoute.hpp"
+#include "HttpRouter.hpp"
 
 namespace aishttpd {
 
@@ -29,32 +30,6 @@ enum {
 	AIS_HTTP_TRACE   = GWNET_HTTP_METHOD_TRACE,
 	AIS_HTTP_CONNECT = GWNET_HTTP_METHOD_CONNECT,
 	AIS_HTTP_MAX     = AIS_HTTP_CONNECT + 1,
-};
-
-
-class HttpRouter {
-private:
-	std::string	host_;
-	std::unordered_map<std::string, std::vector<HttpRoute>> routes_;
-
-	int invoke(int method, const std::string &path, Httpd *h, HttpReq *r);
-
-public:
-	inline HttpRouter(const std::string &host):
-		host_(host)
-	{
-	}
-
-	~HttpRouter(void) = default;
-
-	inline const std::string &get_host(void) const
-	{
-		return host_;
-	}
-
-	void addRoute(int method, const std::string &path, std::function<int(Httpd *, HttpReq *)> cb);
-
-	friend class Httpd;
 };
 
 class Httpd {

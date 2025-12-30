@@ -90,38 +90,4 @@ void Httpd::stop(void)
 	ais_http_ctx_stop(&http_ctx_);
 }
 
-void HttpRouter::addRoute(int method, const std::string &path,
-			   std::function<int(Httpd *, HttpReq *)> cb)
-{
-	auto it = routes_.find(path);
-	if (it == routes_.end()) {
-		std::vector<HttpRoute> v(AIS_HTTP_MAX);
-		v[method] = HttpRoute(std::move(cb));
-		routes_.emplace(path, v);
-	} else {
-		it->second[method] = HttpRoute(std::move(cb));
-	}
-}
-
-int HttpRouter::invoke(int method, const std::string &path, Httpd *h, HttpReq *r)
-{
-	auto it = routes_.find(path);
-	if (it == routes_.end()) {
-		/*
-		 * TODO(viro_ssfs): Handle 404 Not Found.
-		 */
-		return -ENOENT;
-	}
-
-	auto &rv = it->second;
-	if (rv.size() <= (size_t)method || !rv[method].cb_) {
-		/*
-		 * TODO(viro_ssfs): Handle 405 Method Not Allowed.
-		 */
-		return -ENOSYS;
-	}
-
-	return rv[method].invoke(h, r);
-}
-
 } /* namespace aishttpd */

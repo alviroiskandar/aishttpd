@@ -6,12 +6,12 @@ CXXFLAGS := -Wall -Wextra -O2 -ggdb3 -std=gnu++17 -D_GNU_SOURCE
 LDFLAGS := -O2 -ggdb3
 DEPFLAGS := -MMD -MP
 AISHTTPD_SOURCES := \
-	src/http_parser/gwnet_http1.c \
-	src/main.c \
-	src/http.c \
-	src/tcp.c \
-	src/buf.c \
-	src/file.c
+	libaishttpd/http_parser/gwnet_http1.c \
+	libaishttpd/main.c \
+	libaishttpd/http.c \
+	libaishttpd/tcp.c \
+	libaishttpd/buf.c \
+	libaishttpd/file.c
 AISHTTPD_OBJECTS := $(AISHTTPD_SOURCES:.c=.o)
 AISHTTPD_DEPS := $(AISHTTPD_SOURCES:.c=.d)
 

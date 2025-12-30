@@ -57,6 +57,6 @@ aishttpd: $(AISHTTPD_OBJECTS) libaishttpd.a
 	$(CXX) $(CXXFLAGS) $(DEPFLAGS) -c $< -o $@
 
 clean:
-	rm -f aishttpd $(LIBAISHTTPD_OBJECTS) $(LIBAISHTTPD_DEPS)
+	rm -f aishttpd $(LIBAISHTTPD_OBJECTS) $(LIBAISHTTPD_DEPS) $(AISHTTPD_OBJECTS) $(AISHTTPD_DEPS) libaishttpd.so libaishttpd.a
 
 .PHONY: all clean

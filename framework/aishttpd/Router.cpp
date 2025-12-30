@@ -24,20 +24,25 @@ void Router::addRoute(int method, const std::string &path,
 
 int Router::invoke(int method, const std::string &path, Httpd *h, Req *r)
 {
+	ais_http_req *req = r->get_req();
+	ais_http_res *res = &req->res;
+
 	auto it = routes_.find(path);
 	if (it == routes_.end()) {
-		/*
-		 * TODO(viro_ssfs): Handle 404 Not Found.
-		 */
-		return -ENOENT;
+		int q = 0;
+		ais_http_res_set_code(res, 404);
+		q |= ais_http_res_add_hdr(res, "Content-Type", "text/plain; charset=utf-8");
+		q |= ais_http_res_body_set_bufl(res, "404 Not Found!\n", 15);
+		return q;
 	}
 
 	auto &rv = it->second;
 	if (rv.size() <= (size_t)method || !rv[method].cb_) {
-		/*
-		 * TODO(viro_ssfs): Handle 405 Method Not Allowed.
-		 */
-		return -ENOSYS;
+		int q = 0;
+		ais_http_res_set_code(res, 405);
+		q |= ais_http_res_add_hdr(res, "Content-Type", "text/plain; charset=utf-8");
+		q |= ais_http_res_body_set_bufl(res, "405 Method Not Allowed!\n", 24);
+		return q;
 	}
 
 	return rv[method].invoke(h, r);

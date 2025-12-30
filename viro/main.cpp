@@ -18,7 +18,7 @@ static void setHttpRouters(Httpd *h)
 		const char *path = r->get_req()->hdr.uri;
 		std::string file_path = "./public/";
 
-		if (!path || strlen(path) == 0)
+		if (!path || strlen(path) < 2)
 			return PREROUTE_SKIP;
 		if (path[0] != '/')
 			return PREROUTE_SKIP;
@@ -31,11 +31,7 @@ static void setHttpRouters(Httpd *h)
 	});
 
 	r->addRoute(AIS_HTTP_GET, "/", [](Httpd *h, Req *r) -> int {
-		r->showFile(h, r, "index.html");
-		return 0;
-	});
-	r->addRoute(AIS_HTTP_GET, "/index", [](Httpd *h, Req *r) -> int {
-		r->redirect(h, r, "/");
+		r->showFile(h, r, "public/index.html");
 		return 0;
 	});
 

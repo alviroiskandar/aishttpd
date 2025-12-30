@@ -16,6 +16,7 @@ int ais_sock_tcp_srv_init(struct ais_sock_tcp_srv *srv, const struct ais_sock_tc
 {
 	struct ais_sock_addr *ba = &srv->bind_addr;
 	int err, fd, ep_fd, ev_fd;
+	size_t cap_client;
 
 	memset(srv, 0, sizeof(*srv));
 	if (inet_pton(AF_INET, iarg->bind_addr, &ba->in.sin_addr) == 1) {
@@ -37,7 +38,7 @@ int ais_sock_tcp_srv_init(struct ais_sock_tcp_srv *srv, const struct ais_sock_tc
 	 * Only create the socket, don't bind or listen yet. Allow
 	 * the caller to call setsockopt() before binding and listening.
 	 */
-	fd = socket(ba->sa.sa_family, SOCK_STREAM | SOCK_NONBLOCK, IPPROTO_TCP);
+	fd = socket(ba->sa.sa_family, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, IPPROTO_TCP);
 	if (fd < 0)
 		return -errno;
 
@@ -47,7 +48,7 @@ int ais_sock_tcp_srv_init(struct ais_sock_tcp_srv *srv, const struct ais_sock_tc
 		goto out_err_socket;
 	}
 
-	ep_fd = epoll_create(128);
+	ep_fd = epoll_create1(EPOLL_CLOEXEC);
 	if (ep_fd < 0) {
 		err = -errno;
 		goto out_err_eventfd;
@@ -59,7 +60,12 @@ int ais_sock_tcp_srv_init(struct ais_sock_tcp_srv *srv, const struct ais_sock_tc
 		goto out_err_epoll;
 	}
 
-	srv->clients = calloc(iarg->max_clients, sizeof(*srv->clients));
+	if (iarg->max_clients <= 32)
+		cap_client = iarg->max_clients;
+	else
+		cap_client = 32;
+
+	srv->clients = calloc(cap_client, sizeof(*srv->clients));
 	if (!srv->clients) {
 		err = -ENOMEM;
 		goto out_err_events;
@@ -70,6 +76,7 @@ int ais_sock_tcp_srv_init(struct ais_sock_tcp_srv *srv, const struct ais_sock_tc
 	srv->ev_fd = ev_fd;
 	srv->nevents = iarg->epoll_nevents;
 	srv->max_clients = iarg->max_clients;
+	srv->cap_clients = cap_client;
 	return 0;
 
 out_err_events:
@@ -92,8 +99,8 @@ static void ais_sock_tcp_cli_free(struct ais_sock_tcp_cli *cli)
 	if (cli->fd >= 0)
 		close(cli->fd);
 
-	free(cli->rx_buf.buf);
-	free(cli->tx_buf.buf);
+	ais_buf_free(&cli->rx_buf);
+	ais_buf_free(&cli->tx_buf);
 	free(cli);
 }
 
@@ -127,6 +134,87 @@ void ais_sock_tcp_srv_free(struct ais_sock_tcp_srv *srv)
 	memset(srv, 0, sizeof(*srv));
 }
 
+static int grow_clients_array(struct ais_sock_tcp_srv *srv)
+{
+	struct ais_sock_tcp_cli **new_clients;
+	size_t new_cap, l;
+
+	if (srv->cap_clients >= srv->max_clients)
+		return -ENOMEM;
+
+	if (srv->nclients < srv->cap_clients)
+		return 0;
+
+	if (!srv->cap_clients)
+		srv->cap_clients = 1;
+
+	new_cap = srv->cap_clients * 2;
+	if (new_cap > srv->max_clients)
+		new_cap = srv->max_clients;
+
+	new_clients = realloc(srv->clients, new_cap * sizeof(*srv->clients));
+	if (!new_clients)
+		return -ENOMEM;
+
+	/*
+	 * Zero out the new portion of the array.
+	 */
+	l = (new_cap - srv->cap_clients) * sizeof(*srv->clients);
+	memset(&new_clients[srv->cap_clients], 0, l);
+	srv->clients = new_clients;
+	srv->cap_clients = new_cap;
+	return 0;
+}
+
+static void shrink_clients_array(struct ais_sock_tcp_srv *srv)
+{
+	size_t nr_free_slot = srv->cap_clients - srv->nclients;
+	struct ais_sock_tcp_cli **new_clients;
+	size_t new_cap;
+
+	if (nr_free_slot < 256)
+		return;
+
+	new_cap = srv->nclients + 32;
+	new_clients = realloc(srv->clients, new_cap * sizeof(*srv->clients));
+	if (!new_clients)
+		return;
+
+	srv->clients = new_clients;
+	srv->cap_clients = new_cap;
+}
+
+static int handle_error_from_accept4(struct ais_sock_tcp_srv *srv, int err)
+{
+	/*
+	 * We must be very careful in handling -EMFILE and -ENFILE here
+	 * as it is prone to infinite loop.
+	 *
+	 * If we hit -EMFILE or -ENFILE:
+	 *   - Stop accepting new connections immediately.
+	 *   - Disable EPOLLIN event on the server socket.
+	 *   - Wait until a client disconnects, then re-enable EPOLLIN event.
+	 */
+	if (err == -EMFILE || err == -ENFILE) {
+		struct epoll_event ev;
+
+		ev.events = 0;
+		ev.data.u64 = 0;
+		ev.data.ptr = srv;
+		ev.data.u64 |= AIS_EV_DATA_TCP_SRV;
+		if (epoll_ctl(srv->ep_fd, EPOLL_CTL_MOD, srv->fd, &ev) < 0)
+			return -errno;
+
+		srv->accepting_conns = false;
+		return -EAGAIN;
+	}
+
+	if (err == -EAGAIN || err == -EINTR)
+		return -EAGAIN;
+
+	return err;
+}
+
 static int __handle_event_tcp_srv(struct ais_sock_tcp_srv *srv)
 {
 	struct ais_sock_addr addr;
@@ -135,9 +223,9 @@ static int __handle_event_tcp_srv(struct ais_sock_tcp_srv *srv)
 	struct epoll_event ev;
 	int r, fd;
 
-	fd = accept4(srv->fd, &addr.sa, &addr_len, SOCK_NONBLOCK);
+	fd = accept4(srv->fd, &addr.sa, &addr_len, SOCK_NONBLOCK | SOCK_CLOEXEC);
 	if (fd < 0)
-		return -errno;
+		return handle_error_from_accept4(srv, -errno);
 
 	if (srv->nclients >= srv->max_clients) {
 		/*
@@ -151,13 +239,17 @@ static int __handle_event_tcp_srv(struct ais_sock_tcp_srv *srv)
 	if (!cli)
 		goto out_err_close;
 
+	r = grow_clients_array(srv);
+	if (r < 0)
+		goto out_err_free_cli;
+
 	/*
 	 * TODO(viro_ssfs): Make the buffer size configurable from the caller.
 	 */
-	r = ais_sock_buf_init(&cli->rx_buf, 8192);
+	r = ais_buf_init(&cli->rx_buf, 1024);
 	if (r < 0)
 		goto out_err_free_cli;
-	r = ais_sock_buf_init(&cli->tx_buf, 8192);
+	r = ais_buf_init(&cli->tx_buf, 512);
 	if (r < 0)
 		goto out_err_free_cli;
 
@@ -165,7 +257,7 @@ static int __handle_event_tcp_srv(struct ais_sock_tcp_srv *srv)
 	cli->srv = srv;
 	cli->addr = addr;
 	if (srv->cb_accept) {
-		r = srv->cb_accept(cli);
+		r = srv->cb_accept(cli, srv->cb_accept_arg);
 		if (r < 0) {
 			cli->fd = -1;
 			ais_sock_tcp_cli_free(cli);
@@ -186,6 +278,7 @@ static int __handle_event_tcp_srv(struct ais_sock_tcp_srv *srv)
 
 	cli->idx = (uint32_t)srv->nclients++;
 	srv->clients[cli->idx] = cli;
+	assert(srv->nclients <= srv->cap_clients);
 	return 0;
 
 out_err_free_cli:
@@ -214,17 +307,24 @@ static int handle_event_tcp_srv(struct ais_sock_tcp_srv *srv, struct epoll_event
 
 static int handle_event_tcp_cli_recv(struct ais_sock_tcp_cli *cli)
 {
+	struct ais_buf *rxb = &cli->rx_buf;
 	ssize_t recv_ret;
 	size_t recv_len;
 	void *recv_buf;
 
-	recv_len = cli->rx_buf.len - cli->rx_buf.off;
-	recv_buf = cli->rx_buf.buf + cli->rx_buf.off;
+	recv_len = rxb->cap - rxb->len;
+	if (!recv_len) {
+		if (ais_buf_increase(rxb, 4096) < 0)
+			return -ENOMEM;
+		recv_len = rxb->cap - rxb->len;
+	}
+
+	recv_buf = &rxb->buf[rxb->len];
 	recv_ret = recv(cli->fd, recv_buf, recv_len, MSG_DONTWAIT);
 	if (recv_ret < 0) {
 		int err = -errno;
 		if (err == -EAGAIN || err == -EINTR) {
-			if (cli->rx_buf.off > 0)
+			if (cli->rx_buf.len > 0)
 				goto invoke_cb;
 			return 0;
 		}
@@ -237,16 +337,13 @@ static int handle_event_tcp_cli_recv(struct ais_sock_tcp_cli *cli)
 		return -EIO;
 	}
 
-	cli->rx_buf.off += recv_ret;
+	cli->rx_buf.len += recv_ret;
 
 invoke_cb:
 	if (cli->cb_rx) {
 		recv_ret = cli->cb_rx(cli);
-		if (recv_ret < 0)
+		if (recv_ret < 0 && recv_ret != -EAGAIN)
 			return recv_ret;
-
-		assert((size_t)recv_ret <= cli->rx_buf.off);
-		ais_sock_buf_advance(&cli->rx_buf, (uint16_t)recv_ret);
 	}
 
 	return 0;
@@ -254,13 +351,13 @@ invoke_cb:
 
 static int handle_event_tcp_cli_send(struct ais_sock_tcp_cli *cli)
 {
-	ssize_t send_ret;
+	ssize_t send_ret, r = 0;
 	size_t send_len;
 	void *send_buf;
 
-	send_len = cli->tx_buf.off;
+	send_len = cli->tx_buf.len;
 	send_buf = cli->tx_buf.buf;
-	send_ret = send(cli->fd, send_buf, send_len, MSG_DONTWAIT);
+	send_ret = send(cli->fd, send_buf, send_len, MSG_DONTWAIT | MSG_NOSIGNAL);
 	if (send_ret < 0) {
 		int err = -errno;
 		if (err == -EAGAIN || err == -EINTR)
@@ -269,12 +366,12 @@ static int handle_event_tcp_cli_send(struct ais_sock_tcp_cli *cli)
 		return err;
 	}
 
-	assert((size_t)send_ret <= cli->tx_buf.off);
-	ais_sock_buf_advance(&cli->tx_buf, (uint16_t)send_ret);
+	assert((size_t)send_ret <= cli->tx_buf.len);
+	ais_buf_soft_advance(&cli->tx_buf, (size_t)send_ret);
 	if (cli->cb_tx)
-		cli->cb_tx(cli, send_ret);
+		r = cli->cb_tx(cli, send_ret);
 
-	return 0;
+	return (r < 0) ? r : 0;
 }
 
 static int adjust_epoll_events(struct ais_sock_tcp_srv *srv, struct ais_sock_tcp_cli *cli)
@@ -291,12 +388,12 @@ static int adjust_epoll_events(struct ais_sock_tcp_srv *srv, struct ais_sock_tcp
 	 * disabled, but there's data to send, enable it.
 	 */
 	if (cli->ep_mask & EPOLLOUT) {
-		if (cli->tx_buf.off == 0) {
+		if (cli->tx_buf.len == 0) {
 			need_mod = true;
 			cli->ep_mask &= ~EPOLLOUT;
 		}
 	} else {
-		if (cli->tx_buf.off > 0) {
+		if (cli->tx_buf.len > 0) {
 			need_mod = true;
 			cli->ep_mask |= EPOLLOUT;
 		}
@@ -319,6 +416,7 @@ static void ais_sock_tcp_srv_close_cli(struct ais_sock_tcp_srv *srv, struct ais_
 {
 	uint32_t last_idx = (uint32_t)(srv->nclients - 1);
 	struct ais_sock_tcp_cli **clients = srv->clients;
+	struct epoll_event ev;
 
 	epoll_ctl(srv->ep_fd, EPOLL_CTL_DEL, cli->fd, NULL);
 
@@ -335,6 +433,21 @@ static void ais_sock_tcp_srv_close_cli(struct ais_sock_tcp_srv *srv, struct ais_
 	clients[last_idx] = NULL;
 	srv->nclients--;
 	ais_sock_tcp_cli_free(cli);
+	shrink_clients_array(srv);
+
+	/*
+	 * Paired with the logic in handle_error_from_accept4(),
+	 * if we are not accepting new connections, re-enable
+	 * it now since a client has just disconnected.
+	 */
+	if (!srv->accepting_conns) {
+		ev.events = EPOLLIN;
+		ev.data.u64 = 0;
+		ev.data.ptr = srv;
+		ev.data.u64 |= AIS_EV_DATA_TCP_SRV;
+		if (!epoll_ctl(srv->ep_fd, EPOLL_CTL_MOD, srv->fd, &ev))
+			srv->accepting_conns = true;
+	}
 }
 
 static int handle_event_tcp_cli(struct ais_sock_tcp_srv *srv, struct epoll_event *ev, void *udata)
@@ -358,7 +471,7 @@ static int handle_event_tcp_cli(struct ais_sock_tcp_srv *srv, struct epoll_event
 		 * If so, enable EPOLLOUT event locally to notify
 		 * the code below to handle sending data.
 		 */
-		if (cli->tx_buf.off > 0)
+		if (cli->tx_buf.len > 0)
 			ev->events |= EPOLLOUT;
 	}
 
@@ -500,71 +613,4 @@ void ais_sock_tcp_srv_stop(struct ais_sock_tcp_srv *srv)
 {
 	srv->should_stop = true;
 	eventfd_write(srv->ev_fd, 1);
-}
-
-int ais_sock_buf_init(struct ais_sock_buf *sb, uint16_t size)
-{
-	sb->buf = malloc(size + 1);
-	if (!sb->buf)
-		return -ENOMEM;
-
-	sb->buf[0] = 0;
-	sb->len = size;
-	sb->off = 0;
-	return 0;
-}
-
-int ais_sock_buf_append(struct ais_sock_buf *sb, const void *data, uint16_t len)
-{
-	if (sb->off + len > sb->len)
-		return -ENOSPC;
-
-	memcpy(sb->buf + sb->off, data, len);
-	sb->off += len;
-	sb->buf[sb->off] = 0;
-	return 0;
-}
-
-int ais_sock_buf_append_grow(struct ais_sock_buf *sb, const void *data, uint16_t len)
-{
-	if (sb->off + len > sb->len) {
-		uint16_t new_len = sb->len * 2;
-		char *new_buf;
-
-		while (sb->off + len > new_len)
-			new_len *= 2;
-
-		new_buf = realloc(sb->buf, new_len + 1);
-		if (!new_buf)
-			return -ENOMEM;
-
-		sb->buf = new_buf;
-		sb->len = new_len;
-	}
-
-	memcpy(sb->buf + sb->off, data, len);
-	sb->off += len;
-	sb->buf[sb->off] = 0;
-	return 0;
-}
-
-void ais_sock_buf_free(struct ais_sock_buf *sb)
-{
-	if (!sb || !sb->buf)
-		return;
-
-	free(sb->buf);
-	memset(sb, 0, sizeof(*sb));
-}
-
-void ais_sock_buf_advance(struct ais_sock_buf *sb, uint16_t len)
-{
-	if (len >= sb->off) {
-		sb->off = 0;
-		sb->buf[0] = 0;
-	} else {
-		memmove(sb->buf, sb->buf + len, sb->off - len);
-		sb->off -= len;
-		sb->buf[sb->off] = 0;
-	}
 }

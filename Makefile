@@ -8,13 +8,15 @@ AISHTTPD_SOURCES := \
 	src/http_parser/gwnet_http1.c \
 	src/main.c \
 	src/http.c \
-	src/tcp.c
+	src/tcp.c \
+	src/buf.c \
+	src/file.c
 AISHTTPD_OBJECTS := $(AISHTTPD_SOURCES:.c=.o)
 AISHTTPD_DEPS := $(AISHTTPD_SOURCES:.c=.d)
 
 ifeq ($(SANITIZE),1)
-    CFLAGS += -fsanitize=address -fsanitize=undefined
-    LDFLAGS += -fsanitize=address -fsanitize=undefined
+	CFLAGS += -fsanitize=address -fsanitize=undefined
+	LDFLAGS += -fsanitize=address -fsanitize=undefined
 endif
 
 all: aishttpd

@@ -18,6 +18,10 @@ static void setHttpRouters(Httpd *h)
 		r->showHTMLFile(h, r, "index.html");
 		return 0;
 	});
+	r->addRoute(AIS_HTTP_GET, "/index", [](Httpd *h, Req *r) -> int {
+		r->redirect(h, r, "/");
+		return 0;
+	});
 
 	h->setDefaultRouter(r);
 	h->addRouter(r);

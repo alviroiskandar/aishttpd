@@ -30,6 +30,7 @@ public:
 	}
 
 	void showHTMLFile(Httpd *h, Req *hr, const std::string &file_path);
+	void redirect(Httpd *h, Req *hr, const std::string &url);
 
 	friend class Httpd;
 };

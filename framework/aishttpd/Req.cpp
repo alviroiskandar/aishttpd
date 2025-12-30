@@ -31,4 +31,22 @@ void Req::showHTMLFile(Httpd *h, Req *hr, const std::string &file_path)
 	}
 }
 
+void Req::redirect(Httpd *h, Req *hr, const std::string &url)
+{
+	struct ais_http_req *req = hr->get_req();
+	struct ais_http_res *res = &req->res;
+	int r = 0;
+
+	ais_http_res_set_code(res, 302);
+	r = ais_http_res_add_hdr(res, "Location", url.c_str());
+	if (r)
+		throw std::bad_alloc();
+
+	r = ais_http_res_body_set_bufl(res, "Redirecting...\n", 15);
+	if (r)
+		throw std::bad_alloc();
+
+	(void)h; // currently unused
+}
+
 } /* namespace aishttpd */

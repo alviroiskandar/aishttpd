@@ -8,9 +8,9 @@
 
 #include <sys/types.h>
 #include <stdint.h>
-#include <stdatomic.h>
 #include <pthread.h>
 #include <time.h>
+#include "atomic.h"
 
 #ifdef __cplusplus
 extern "C" {

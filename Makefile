@@ -12,13 +12,18 @@ LIBS     := -lpthread
 
 LIBAISHTTPD_SOURCES := \
 	libaishttpd/http_parser/gwnet_http1.c \
-	libaishttpd/main.c \
 	libaishttpd/http.c \
 	libaishttpd/tcp.c \
 	libaishttpd/buf.c \
 	libaishttpd/file.c
 LIBAISHTTPD_OBJECTS := $(LIBAISHTTPD_SOURCES:.c=.c.o)
 LIBAISHTTPD_DEPS := $(LIBAISHTTPD_SOURCES:.c=.c.d)
+
+AISHTTPD_SOURCES := \
+	framework/aishttpd/aishttpd.cpp \
+	main.cpp
+AISHTTPD_OBJECTS := $(AISHTTPD_SOURCES:.cpp=.cpp.o)
+AISHTTPD_DEPS := $(AISHTTPD_SOURCES:.cpp=.cpp.d)
 
 ifeq ($(SANITIZE),1)
 	SANITIZE_FLAGS = -fsanitize=address -fsanitize=undefined
@@ -35,13 +40,16 @@ libaishttpd.so: $(LIBAISHTTPD_OBJECTS)
 libaishttpd.a: $(LIBAISHTTPD_OBJECTS)
 	ar rcs $@ $^
 
-aishttpd: libaishttpd.a
+aishttpd: $(AISHTTPD_OBJECTS) libaishttpd.a
 	$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)
 
 -include $(LIBAISHTTPD_DEPS)
 
 %.c.o: %.c
 	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
+
+%.cpp.o: %.cpp
+	$(CXX) $(CXXFLAGS) $(DEPFLAGS) -c $< -o $@
 
 clean:
 	rm -f aishttpd $(LIBAISHTTPD_OBJECTS) $(LIBAISHTTPD_DEPS)

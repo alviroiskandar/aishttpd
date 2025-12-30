@@ -2,6 +2,7 @@
 CC := gcc
 CXX := g++
 CFLAGS := -Wall -Wextra -O2 -ggdb3 -std=gnu11 -D_GNU_SOURCE
+CXXFLAGS := -Wall -Wextra -O2 -ggdb3 -std=gnu++17 -D_GNU_SOURCE
 LDFLAGS := -O2 -ggdb3
 DEPFLAGS := -MMD -MP
 AISHTTPD_SOURCES := \

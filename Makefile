@@ -12,8 +12,8 @@ AISHTTPD_SOURCES := \
 	libaishttpd/tcp.c \
 	libaishttpd/buf.c \
 	libaishttpd/file.c
-AISHTTPD_OBJECTS := $(AISHTTPD_SOURCES:.c=.o)
-AISHTTPD_DEPS := $(AISHTTPD_SOURCES:.c=.d)
+AISHTTPD_OBJECTS := $(AISHTTPD_SOURCES:.c=.c.o)
+AISHTTPD_DEPS := $(AISHTTPD_SOURCES:.c=.c.d)
 
 ifeq ($(SANITIZE),1)
 	CFLAGS += -fsanitize=address -fsanitize=undefined
@@ -27,7 +27,7 @@ aishttpd: $(AISHTTPD_OBJECTS)
 
 -include $(AISHTTPD_DEPS)
 
-%.o: %.c
+%.c.o: %.c
 	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@
 
 clean:

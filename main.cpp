@@ -15,7 +15,7 @@ static void setHttpRouters(Httpd *h)
 	auto r = std::make_shared<Router>("www.freezing-night.com");
 
 	r->addRoute(AIS_HTTP_GET, "/", [](Httpd *h, Req *r) -> int {
-		r->showHTMLFile(h, r, "index.html");
+		r->showFile(h, r, "index.html");
 		return 0;
 	});
 	r->addRoute(AIS_HTTP_GET, "/index", [](Httpd *h, Req *r) -> int {

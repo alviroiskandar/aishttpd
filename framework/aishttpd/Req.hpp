@@ -29,7 +29,7 @@ public:
 		return req_;
 	}
 
-	void showHTMLFile(Httpd *h, Req *hr, const std::string &file_path);
+	void showFile(Httpd *h, Req *hr, const std::string &file_path);
 	void redirect(Httpd *h, Req *hr, const std::string &url);
 
 	friend class Httpd;

@@ -6,19 +6,17 @@
 
 #include "Httpd.hpp"
 #include <stdexcept>
+#include <cstring>
 
 namespace aishttpd {
 
-void Req::showHTMLFile(Httpd *h, Req *hr, const std::string &file_path)
+void Req::showFile(Httpd *h, Req *hr, const std::string &file_path)
 {
 	struct ais_file_table *ftb = &h->http_ctx_.file_table;
 	ais_http_req *req = hr->get_req();
 	struct ais_http_res *res = &req->res;
+	char ext[32];
 	int r = 0;
-
-	r = ais_http_res_add_hdr(res, "Content-Type", "text/html; charset=UTF-8");
-	if (r)
-		throw std::bad_alloc();
 
 	r = ais_http_res_body_set_file_path(res, ftb, file_path.c_str());
 	if (r) {
@@ -29,6 +27,15 @@ void Req::showHTMLFile(Httpd *h, Req *hr, const std::string &file_path)
 			throw std::runtime_error("Failed to set file path: " + file_path);
 		}
 	}
+
+	std::memset(ext, 0, sizeof(ext));
+	const char *dot = strrchr(file_path.c_str(), '.');
+	if (dot && strlen(dot) < sizeof(ext))
+		std::strncpy(ext, dot + 1, sizeof(ext) - 1);
+
+	r = ais_http_res_add_hdr(res, "Content-Type", ais_http_get_mime_type(ext));
+	if (r)
+		throw std::bad_alloc();
 }
 
 void Req::redirect(Httpd *h, Req *hr, const std::string &url)

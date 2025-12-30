@@ -8,7 +8,7 @@
 
 namespace aishttpd {
 
-httpd::httpd(void)
+Httpd::Httpd(void)
 {
 	iarg_ = std::make_unique<struct ais_http_srv_iarg>();
 	iarg_->tcp.bind_addr = "::";
@@ -19,13 +19,13 @@ httpd::httpd(void)
 	iarg_->nr_workers = 4;
 }
 
-httpd::~httpd(void)
+Httpd::~Httpd(void)
 {
 	ais_http_ctx_stop(&http_ctx_);
 	ais_http_ctx_free(&http_ctx_);
 }
 
-int httpd::invoke_default_router(httpd *h, aishttpd::http_req *hr)
+int Httpd::InvokeDefaultRouter(Httpd *h, HttpReq *hr)
 {
 	if (h->default_router_ == nullptr) {
 		/*
@@ -40,33 +40,33 @@ int httpd::invoke_default_router(httpd *h, aishttpd::http_req *hr)
 }
 
 // static
-int httpd::httpd_route_cb(struct ais_http_req *req)
+int Httpd::HttpdRouteCb(struct ais_http_req *req)
 {
-	httpd *h = static_cast<httpd *>(req->user_data);
+	Httpd *h = static_cast<Httpd *>(req->user_data);
 	gwnet_http_req_hdr *hdr = &req->hdr;
 	const char *host;
-	http_req hr(req);
+	HttpReq hr(req);
 
 	host = gwnet_http_hdr_fields_get(&hdr->fields, "host");
 	if (!host)
-		return invoke_default_router(h, &hr);
+		return InvokeDefaultRouter(h, &hr);
 
 	auto it = h->routers_.find(host);
 	if (it == h->routers_.end())
-		return invoke_default_router(h, &hr);
+		return InvokeDefaultRouter(h, &hr);
 
 	return it->second->invoke(hdr->method, hdr->path ? hdr->path : "/", h, &hr);
 }
 
 // static
-int httpd::httpd_accept_cb(struct ais_http_req *req, void *arg)
+int Httpd::HttpdAcceptCb(struct ais_http_req *req, void *arg)
 {
 	req->user_data = arg;
-	ais_http_req_set_route_cb(req, &httpd::httpd_route_cb);
+	ais_http_req_set_route_cb(req, &Httpd::HttpdRouteCb);
 	return 0;
 }
 
-void httpd::start(void)
+void Httpd::start(void)
 {
 	int r;
 
@@ -77,7 +77,7 @@ void httpd::start(void)
 	// Discard iarg_ after initializing the context.
 	iarg_.reset();
 
-	ais_http_req_set_accept_cb(&http_ctx_, &httpd_accept_cb);
+	ais_http_req_set_accept_cb(&http_ctx_, &Httpd::HttpdAcceptCb);
 	ais_http_req_set_accept_cb_arg(&http_ctx_, this);
 
 	r = ais_http_ctx_run(&http_ctx_);
@@ -85,25 +85,25 @@ void httpd::start(void)
 		throw std::runtime_error("Failed to start HTTP context");
 }
 
-void httpd::stop(void)
+void Httpd::stop(void)
 {
 	ais_http_ctx_stop(&http_ctx_);
 }
 
-void http_router::addRoute(int method, const std::string &path,
-			   std::function<int(httpd *, http_req *)> cb)
+void HttpRouter::addRoute(int method, const std::string &path,
+			   std::function<int(Httpd *, HttpReq *)> cb)
 {
 	auto it = routes_.find(path);
 	if (it == routes_.end()) {
-		std::vector<http_route> v(AIS_HTTP_MAX);
-		v[method] = http_route(std::move(cb));
+		std::vector<HttpRoute> v(AIS_HTTP_MAX);
+		v[method] = HttpRoute(std::move(cb));
 		routes_.emplace(path, v);
 	} else {
-		it->second[method] = http_route(std::move(cb));
+		it->second[method] = HttpRoute(std::move(cb));
 	}
 }
 
-int http_router::invoke(int method, const std::string &path, httpd *h, http_req *r)
+int HttpRouter::invoke(int method, const std::string &path, Httpd *h, HttpReq *r)
 {
 	auto it = routes_.find(path);
 	if (it == routes_.end()) {
@@ -124,11 +124,11 @@ int http_router::invoke(int method, const std::string &path, httpd *h, http_req 
 	return rv[method].invoke(h, r);
 }
 
-void http_req::showHTMLFile(httpd *h, http_req *hr, const std::string &file_path)
+void HttpReq::showHTMLFile(Httpd *h, HttpReq *hr, const std::string &file_path)
 {
+	struct ais_file_table *ftb = &h->http_ctx_.file_table;
 	ais_http_req *req = hr->get_req();
 	struct ais_http_res *res = &req->res;
-	struct ais_file_table *ftb = &h->http_ctx_.file_table;
 	int r = 0;
 
 	r = ais_http_res_add_hdr(res, "Content-Type", "text/html; charset=UTF-8");

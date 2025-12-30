@@ -10,22 +10,24 @@
 
 using namespace aishttpd;
 
-static void set_freezing_night_router(httpd *h)
+static void set_freezing_night_router(Httpd *h)
 {
-	auto r = std::make_shared<http_router>("www.freezing-night.com");
-	r->addRoute(AIS_HTTP_GET, "/", [](httpd *h, http_req *r) -> int {
+	auto r = std::make_shared<HttpRouter>("www.freezing-night.com");
+
+	r->addRoute(AIS_HTTP_GET, "/", [](Httpd *h, HttpReq *r) -> int {
 		r->showHTMLFile(h, r, "index.html");
 		return 0;
 	});
+
 	h->setDefaultRouter(r);
 	h->addRouter(r);
 }
 
-static int setup_signal_handler(httpd *h);
+static int setup_signal_handler(Httpd *h);
 
 int main(void)
 {
-	httpd h;
+	Httpd h;
 
 	setup_signal_handler(&h);
 	set_freezing_night_router(&h);
@@ -37,7 +39,7 @@ int main(void)
 	return 0;
 }
 
-static httpd *g_h = nullptr;
+static Httpd *g_h = nullptr;
 
 static void handle_signal(int sig)
 {
@@ -50,7 +52,7 @@ static void handle_signal(int sig)
 	(void)sig;
 }
 
-static int setup_signal_handler(httpd *h)
+static int setup_signal_handler(Httpd *h)
 {
 	struct sigaction sa;
 	int r = 0;

@@ -28,90 +28,90 @@ enum {
 	AIS_HTTP_MAX     = AIS_HTTP_CONNECT + 1,
 };
 
-class httpd;
+class Httpd;
 
-class http_req {
+class HttpReq {
 private:
 	struct ais_http_req *req_;
 
 public:
-	inline http_req(struct ais_http_req *r):
+	inline HttpReq(struct ais_http_req *r):
 		req_(r)
 	{
 	}
 
-	~http_req(void) = default;
+	~HttpReq(void) = default;
 
 	inline struct ais_http_req *get_req(void)
 	{
 		return req_;
 	}
 
-	void showHTMLFile(httpd *h, http_req *hr, const std::string &file_path);
+	void showHTMLFile(Httpd *h, HttpReq *hr, const std::string &file_path);
 
-	friend class httpd;
+	friend class Httpd;
 };
 
-class http_route {
+class HttpRoute {
 private:
-	std::function<int(httpd *, http_req *)> cb_;
+	std::function<int(Httpd *, HttpReq *)> cb_;
 
-	inline int invoke(httpd *h, http_req *r)
+	inline int invoke(Httpd *h, HttpReq *r)
 	{
 		return cb_(h, r);
 	}
 
 public:
-	inline http_route(std::function<int(httpd *, http_req *)> cb):
+	inline HttpRoute(std::function<int(Httpd *, HttpReq *)> cb):
 		cb_(std::move(cb))
 	{
 	}
 
-	http_route(void) = default;
+	HttpRoute(void) = default;
 
-	friend class httpd;
-	friend class http_router;
+	friend class Httpd;
+	friend class HttpRouter;
 };
 
-class http_router {
+class HttpRouter {
 private:
 	std::string	host_;
-	std::unordered_map<std::string, std::vector<http_route>> routes_;
+	std::unordered_map<std::string, std::vector<HttpRoute>> routes_;
 
-	int invoke(int method, const std::string &path, httpd *h, http_req *r);
+	int invoke(int method, const std::string &path, Httpd *h, HttpReq *r);
 
 public:
-	inline http_router(const std::string &host):
+	inline HttpRouter(const std::string &host):
 		host_(host)
 	{
 	}
 
-	~http_router(void) = default;
+	~HttpRouter(void) = default;
 
 	inline const std::string &get_host(void) const
 	{
 		return host_;
 	}
 
-	void addRoute(int method, const std::string &path, std::function<int(httpd *, http_req *)> cb);
+	void addRoute(int method, const std::string &path, std::function<int(Httpd *, HttpReq *)> cb);
 
-	friend class httpd;
+	friend class Httpd;
 };
 
-class httpd {
+class Httpd {
 private:
 	struct ais_http_ctx http_ctx_;
 	std::unique_ptr<struct ais_http_srv_iarg> iarg_;
-	std::unordered_map<std::string, std::shared_ptr<http_router>> routers_;
-	std::shared_ptr<http_router> default_router_ = nullptr;
+	std::unordered_map<std::string, std::shared_ptr<HttpRouter>> routers_;
+	std::shared_ptr<HttpRouter> default_router_ = nullptr;
 
-	static int httpd_accept_cb(struct ais_http_req *req, void *arg);
-	static int httpd_route_cb(struct ais_http_req *req);
-	static int invoke_default_router(httpd *h, aishttpd::http_req *r);
+	static int HttpdAcceptCb(struct ais_http_req *req, void *arg);
+	static int HttpdRouteCb(struct ais_http_req *req);
+	static int InvokeDefaultRouter(Httpd *h, aishttpd::HttpReq *r);
 
 public:
-	httpd(void);
-	~httpd(void);
+	Httpd(void);
+	~Httpd(void);
 
 	inline void setBindAddr(const char *addr, uint16_t port = 0)
 	{
@@ -140,12 +140,12 @@ public:
 		iarg_->tcp.epoll_nevents = epoll_nevents;
 	}
 
-	inline void setDefaultRouter(std::shared_ptr<http_router> router)
+	inline void setDefaultRouter(std::shared_ptr<HttpRouter> router)
 	{
 		default_router_ = router;
 	}
 
-	inline void addRouter(std::shared_ptr<http_router> router)
+	inline void addRouter(std::shared_ptr<HttpRouter> router)
 	{
 		routers_.emplace(router->get_host(), router);
 		if (!default_router_)
@@ -155,7 +155,7 @@ public:
 	void start(void);
 	void stop(void);
 
-	friend class http_req;
+	friend class HttpReq;
 };
 
 } /* namespace aishttpd */

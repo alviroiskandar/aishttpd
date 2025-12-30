@@ -3,7 +3,7 @@
  * Copyright (C) 2025  Alviro Iskandar Setiawan <alviro.iskandar@gnuweeb.org>
  * Copyright (C) 2025  Ammar Faizi <ammarfaizi2@gnuweeb.org>
  */
-#include "httpd.hpp"
+#include "Httpd.hpp"
 #include <stdexcept>
 
 namespace aishttpd {

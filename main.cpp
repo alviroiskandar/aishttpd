@@ -2,7 +2,7 @@
 /*
  * Copyright (C) 2025  Alviro Iskandar Setiawan <alviro.iskandar@gnuweeb.org>
  */
-#include <aishttpd/httpd.hpp>
+#include <aishttpd/Httpd.hpp>
 #include <cstring>
 #include <cstdio>
 #include <cerrno>

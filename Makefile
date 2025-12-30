@@ -20,7 +20,7 @@ LIBAISHTTPD_OBJECTS := $(LIBAISHTTPD_SOURCES:.c=.c.o)
 LIBAISHTTPD_DEPS := $(LIBAISHTTPD_SOURCES:.c=.c.d)
 
 AISHTTPD_SOURCES := \
-	framework/aishttpd/httpd.cpp \
+	framework/aishttpd/Httpd.cpp \
 	main.cpp
 AISHTTPD_OBJECTS := $(AISHTTPD_SOURCES:.cpp=.cpp.o)
 AISHTTPD_DEPS := $(AISHTTPD_SOURCES:.cpp=.cpp.d)

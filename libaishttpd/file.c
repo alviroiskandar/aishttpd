@@ -127,8 +127,19 @@ int ais_file_table_get_or_open(struct ais_file_table *tb,
 	int ret;
 
 	ret = ais_file_table_get_path(tb, path, out);
-	if (!ret)
+	if (!ret) {
+		f = *out;
+		ret = fstat(f->fd, &st);
+		if (ret < 0) {
+			ais_file_put(f);
+			return -errno;
+		}
+
+		if ((uint64_t)st.st_size != READ_ONCE(f->size))
+			WRITE_ONCE(f->size, (uint64_t)st.st_size);
+
 		return 0;
+	}
 
 	f = malloc(sizeof(*f));
 	if (!f)

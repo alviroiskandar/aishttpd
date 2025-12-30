@@ -12,6 +12,10 @@
 
 #include <pthread.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct ais_http_req;
 
 typedef int (*ais_http_route_cb_t)(struct ais_http_req *req);
@@ -59,6 +63,7 @@ struct ais_http_req {
 	struct ais_http_res		res;
 	struct ais_http_wrk		*wrk;
 	bool				keep_alive;
+	void				*user_data;
 	char				addr[INET6_ADDRSTRLEN + sizeof(":65535")];
 };
 
@@ -123,5 +128,9 @@ static inline int ais_http_res_add_hdr(struct ais_http_res *res, const char *k, 
 {
 	return gwnet_http_hdr_fields_add(&res->hdr.fields, k, v);
 }
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif
 
 #endif /* #ifndef AISHTTPD_HTTP_H */

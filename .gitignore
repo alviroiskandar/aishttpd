@@ -1,3 +1,5 @@
 *.o
 *.d
 /aishttpd
+/libaishttpd.a
+/libaishttpd.so

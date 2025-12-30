@@ -15,6 +15,10 @@
 #include <stdint.h>
 #include <fcntl.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct ais_sock_addr {
 	union {
 		struct sockaddr		sa;
@@ -161,5 +165,9 @@ enum {
 
 #define AIS_EV_GET_DATA(X)	((X) & 0xffff000000000000ull)
 #define AIS_EV_GET_PTR(X)	((X) & 0x0000ffffffffffffull)
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif
 
 #endif /* #ifndef AISHTTPD_TCP_H */

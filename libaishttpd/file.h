@@ -6,11 +6,23 @@
 #ifndef AISHTTPD_FILE_H
 #define AISHTTPD_FILE_H
 
+#ifndef WRITE_ONCE
+#define WRITE_ONCE(x, val)	(*(volatile __typeof__(x) *)&(x) = (val))
+#endif
+
+#ifndef READ_ONCE
+#define READ_ONCE(x)		(*(volatile __typeof__(x) *)&(x))
+#endif
+
 #include <sys/types.h>
 #include <stdint.h>
-#include <stdatomic.h>
 #include <pthread.h>
 #include <time.h>
+#include "atomic.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 struct ais_file {
 	_Atomic(int32_t)	refcnt;
@@ -40,5 +52,9 @@ int ais_file_table_init(struct ais_file_table *tb, size_t max);
 int ais_file_table_get_or_open(struct ais_file_table *tb,
 			       const char *path,
 			       struct ais_file **out);
+
+#ifdef __cplusplus
+} /* extern "C" */
+#endif
 
 #endif /* #ifndef AISHTTPD_FILE_H */

@@ -63,6 +63,7 @@ struct ais_http_req {
 	struct ais_http_res		res;
 	struct ais_http_wrk		*wrk;
 	bool				keep_alive;
+	void				*user_data;
 	char				addr[INET6_ADDRSTRLEN + sizeof(":65535")];
 };
 

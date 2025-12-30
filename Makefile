@@ -20,7 +20,7 @@ LIBAISHTTPD_OBJECTS := $(LIBAISHTTPD_SOURCES:.c=.c.o)
 LIBAISHTTPD_DEPS := $(LIBAISHTTPD_SOURCES:.c=.c.d)
 
 AISHTTPD_SOURCES := \
-	framework/aishttpd/aishttpd.cpp \
+	framework/aishttpd/httpd.cpp \
 	main.cpp
 AISHTTPD_OBJECTS := $(AISHTTPD_SOURCES:.cpp=.cpp.o)
 AISHTTPD_DEPS := $(AISHTTPD_SOURCES:.cpp=.cpp.d)
@@ -44,6 +44,7 @@ aishttpd: $(AISHTTPD_OBJECTS) libaishttpd.a
 	$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)
 
 -include $(LIBAISHTTPD_DEPS)
+-include $(AISHTTPD_DEPS)
 
 %.c.o: %.c
 	$(CC) $(CFLAGS) $(DEPFLAGS) -c $< -o $@

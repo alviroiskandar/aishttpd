@@ -13,6 +13,7 @@
 #include <string>
 
 #include "HttpReq.hpp"
+#include "HttpRoute.hpp"
 
 namespace aishttpd {
 
@@ -30,26 +31,6 @@ enum {
 	AIS_HTTP_MAX     = AIS_HTTP_CONNECT + 1,
 };
 
-class HttpRoute {
-private:
-	std::function<int(Httpd *, HttpReq *)> cb_;
-
-	inline int invoke(Httpd *h, HttpReq *r)
-	{
-		return cb_(h, r);
-	}
-
-public:
-	inline HttpRoute(std::function<int(Httpd *, HttpReq *)> cb):
-		cb_(std::move(cb))
-	{
-	}
-
-	HttpRoute(void) = default;
-
-	friend class Httpd;
-	friend class HttpRouter;
-};
 
 class HttpRouter {
 private:

@@ -124,6 +124,49 @@ static const char *translate_http_code(uint16_t code)
 	}
 }
 
+const char *ais_http_get_mime_type(const char *ext)
+{
+	if (!ext)
+		return "application/octet-stream";
+
+	if (!strcasecmp(ext, "html") || !strcasecmp(ext, "htm"))
+		return "text/html";
+	if (!strcasecmp(ext, "css"))
+		return "text/css";
+	if (!strcasecmp(ext, "js"))
+		return "application/javascript";
+	if (!strcasecmp(ext, "json"))
+		return "application/json";
+	if (!strcasecmp(ext, "jpg") || !strcasecmp(ext, "jpeg"))
+		return "image/jpeg";
+	if (!strcasecmp(ext, "png"))
+		return "image/png";
+	if (!strcasecmp(ext, "gif"))
+		return "image/gif";
+	if (!strcasecmp(ext, "svg"))
+		return "image/svg+xml";
+	if (!strcasecmp(ext, "ico"))
+		return "image/x-icon";
+	if (!strcasecmp(ext, "txt"))
+		return "text/plain";
+	if (!strcasecmp(ext, "pdf"))
+		return "application/pdf";
+	if (!strcasecmp(ext, "xml"))
+		return "application/xml";
+	if (!strcasecmp(ext, "zip"))
+		return "application/zip";
+	if (!strcasecmp(ext, "tar"))
+		return "application/x-tar";
+	if (!strcasecmp(ext, "gz"))
+		return "application/gzip";
+	if (!strcasecmp(ext, "mp3"))
+		return "audio/mpeg";
+	if (!strcasecmp(ext, "mp4"))
+		return "video/mp4";
+
+	return "application/octet-stream";
+}
+
 static void ais_http_res_free(struct ais_http_res *res)
 {
 	if (!res)

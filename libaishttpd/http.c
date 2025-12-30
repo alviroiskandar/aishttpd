@@ -55,7 +55,7 @@ const char *ais_http_get_method_name(int m)
 	}
 }
 
-static const char *translate_http_code(uint16_t code)
+const char *ais_http_translate_code(uint16_t code)
 {
 	switch (code) {
 	case 100: return "Continue";
@@ -287,7 +287,7 @@ static int construct_res_hdr(struct ais_http_req *req)
 	size_t i;
 	int r;
 
-	tmp = res->hdr.reason ? res->hdr.reason : translate_http_code(res->hdr.code);
+	tmp = res->hdr.reason ? res->hdr.reason : ais_http_translate_code(res->hdr.code);
 	r = ais_buf_apfmt(txb,
 			  "HTTP/%s %u %s\r\n"
 			  "Server: aishttpd v0.0.1\r\n"

@@ -14,6 +14,22 @@ static void setHttpRouters(Httpd *h)
 {
 	auto r = std::make_shared<Router>("www.freezing-night.com");
 
+	r->addPreroute([](Httpd *h, Req *r) -> int {
+		const char *path = r->get_req()->hdr.uri;
+		std::string file_path = "./public/";
+
+		if (!path || strlen(path) == 0)
+			return PREROUTE_SKIP;
+		if (path[0] != '/')
+			return PREROUTE_SKIP;
+		if (strstr(path, "..") != nullptr)
+			return PREROUTE_SKIP;
+
+		file_path += path + 1;
+		r->showFile(h, r, file_path);
+		return PREROUTE_MATCH;
+	});
+
 	r->addRoute(AIS_HTTP_GET, "/", [](Httpd *h, Req *r) -> int {
 		r->showFile(h, r, "index.html");
 		return 0;

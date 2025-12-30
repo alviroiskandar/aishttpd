@@ -75,6 +75,7 @@ struct ais_http_ctx {
 	uint32_t			nr_workers;
 	ais_http_accept_cb_t		cb_accept;
 	void				*cb_accept_arg;
+	struct ais_file_table		file_table;
 };
 
 struct ais_http_srv_iarg {
@@ -90,7 +91,13 @@ const char *ais_http_get_method_name(int m);
 int ais_http_res_body_set_buf(struct ais_http_res *res, const void *buf);
 int ais_http_res_body_set_bufl(struct ais_http_res *res, const void *buf, size_t len);
 int ais_http_res_body_set_file(struct ais_http_res *res, struct ais_file *f);
+int ais_http_res_body_set_file_path(struct ais_http_res *res, struct ais_file_table *ftb, const char *path);
 void ais_http_res_body_free(struct ais_http_res_body *b);
+
+static inline struct ais_file_table *ais_http_req_get_file_table(struct ais_http_req *req)
+{
+	return &req->wrk->http_ctx->file_table;
+}
 
 static inline void ais_http_req_set_route_cb(struct ais_http_req *req, ais_http_route_cb_t cb)
 {

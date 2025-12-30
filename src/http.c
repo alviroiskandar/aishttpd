@@ -227,7 +227,8 @@ static int set_content_length_hdr(struct ais_http_res *res, struct ais_buf *txb)
 	switch (res->body.type) {
 	case AIS_RES_BODY_TYPE_BUF:
 		return ais_buf_apfmt(txb, "Content-Length: %zu\r\n", res->body.buf.len);
-		break;
+	case AIS_RES_BODY_TYPE_FILE:
+		return ais_buf_apfmt(txb, "Content-Length: %lu\r\n", res->body.file->size);
 	default:
 		return 0;
 	}
@@ -266,8 +267,31 @@ static int construct_res_hdr(struct ais_http_req *req)
 		r |= ais_buf_append(txb, "\r\n", 2);
 	}
 	r |= ais_buf_apfmt(txb, "\r\n");
-
 	return r ? -ENOMEM : 0;
+}
+
+static int construct_res_body_file(struct ais_http_req *req)
+{
+	struct ais_sock_tcp_cli *cli = req->tcp_cli;
+	struct ais_http_res *res = &req->res;
+	struct ais_buf *txb = &cli->tx_buf;
+	struct ais_file *f = res->body.file;
+	ssize_t read_ret;
+	int r = 0;
+
+	/*
+	 * TODO(viro_ssfs): Handle large files by sending them in chunks.
+	 */
+	r = ais_buf_prepare_need(txb, f->size);
+	if (r < 0)
+		return r;
+
+	read_ret = pread(f->fd, txb->buf + txb->len, f->size, res->body.file_off);
+	if (read_ret < 0)
+		return -errno;
+
+	txb->len += read_ret;
+	return 0;
 }
 
 static int construct_res_body(struct ais_http_req *req)
@@ -283,6 +307,9 @@ static int construct_res_body(struct ais_http_req *req)
 		r = ais_buf_append(txb, b->buf.buf, b->buf.len);
 		break;
 	case AIS_RES_BODY_TYPE_NONE:
+		break;
+	case AIS_RES_BODY_TYPE_FILE:
+		r = construct_res_body_file(req);
 		break;
 	default:
 		r = -EINVAL;
@@ -471,21 +498,34 @@ int ais_http_ctx_init(struct ais_http_ctx *ctx, const struct ais_http_srv_iarg *
 	size_t i;
 	int r;
 
+	r = ais_file_table_init(&ctx->file_table, 256);
+	if (r < 0)
+		return r;
+
 	ctx->workers = calloc(iarg->nr_workers, sizeof(*ctx->workers));
-	if (!ctx->workers)
+	if (!ctx->workers) {
+		ais_file_table_free(&ctx->file_table);
 		return -ENOMEM;
+	}
 
 	ctx->nr_workers = iarg->nr_workers;
 	for (i = 0; i < iarg->nr_workers; i++) {
 		wrk = &ctx->workers[i];
 		r = ais_http_wrk_init(ctx, wrk, iarg);
-		if (r < 0) {
-			ais_http_ctx_free(ctx);
-			return r;
-		}
+		if (r < 0)
+			goto out_err;
 	}
 
 	return 0;
+
+out_err:
+	while (i--) {
+		wrk = &ctx->workers[i];
+		ais_sock_tcp_srv_free(&wrk->tcp_srv);
+	}
+	free(ctx->workers);
+	ais_file_table_free(&ctx->file_table);
+	return r;
 }
 
 static void *ais_wrk_entry(void *arg)
@@ -579,6 +619,18 @@ int ais_http_res_body_set_file(struct ais_http_res *res, struct ais_file *f)
 	b->file = f;
 	b->file_off = 0;
 	return 0;
+}
+
+int ais_http_res_body_set_file_path(struct ais_http_res *res, struct ais_file_table *ftb, const char *path)
+{
+	struct ais_file *f;
+	int r;
+
+	r = ais_file_table_get_or_open(ftb, path, &f);
+	if (r < 0)
+		return r;
+
+	return ais_http_res_body_set_file(res, f);
 }
 
 void ais_http_res_body_free(struct ais_http_res_body *b)

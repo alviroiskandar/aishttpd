@@ -38,10 +38,11 @@ static int setup_signal_handler(struct ais_http_ctx *ctx)
 
 static int route_cb(struct ais_http_req *req)
 {
+	struct ais_file_table *ftb = ais_http_req_get_file_table(req);
 	int r = 0;
 	ais_http_res_set_code(&req->res, 200);
-	r |= ais_http_res_add_hdr(&req->res, "Content-Type", "text/plain");
-	r |= ais_http_res_body_set_buf(&req->res, "Hello, World!\n");
+	r |= ais_http_res_add_hdr(&req->res, "Content-Type", "text/html; charset=UTF-8");
+	r |= ais_http_res_body_set_file_path(&req->res, ftb, "index.html");
 	return r;
 }
 

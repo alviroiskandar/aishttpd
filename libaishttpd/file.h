@@ -6,6 +6,14 @@
 #ifndef AISHTTPD_FILE_H
 #define AISHTTPD_FILE_H
 
+#ifndef WRITE_ONCE
+#define WRITE_ONCE(x, val)	(*(volatile __typeof__(x) *)&(x) = (val))
+#endif
+
+#ifndef READ_ONCE
+#define READ_ONCE(x)		(*(volatile __typeof__(x) *)&(x))
+#endif
+
 #include <sys/types.h>
 #include <stdint.h>
 #include <pthread.h>

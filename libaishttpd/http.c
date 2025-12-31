@@ -315,26 +315,27 @@ static int construct_res_hdr(struct ais_http_req *req)
 
 static int construct_res_body_file(struct ais_http_req *req)
 {
+	static const size_t max_buf = 16*1024;
 	struct ais_sock_tcp_cli *cli = req->tcp_cli;
 	struct ais_http_res *res = &req->res;
 	struct ais_buf *txb = &cli->tx_buf;
 	struct ais_file *f = res->body.file;
 	ssize_t read_ret;
+	size_t read_len;
 	int r = 0;
 
-	/*
-	 * TODO(viro_ssfs): Handle large files by sending them in chunks.
-	 */
-	r = ais_buf_prepare_need(txb, f->size);
+	read_len = f->size < max_buf ? f->size : max_buf;
+	r = ais_buf_prepare_need(txb, read_len);
 	if (r < 0)
 		return r;
 
-	read_ret = pread(f->fd, txb->buf + txb->len, f->size, res->body.file_off);
+	read_ret = pread(f->fd, txb->buf + txb->len, read_len, res->body.file_off);
 	if (read_ret < 0)
 		return -errno;
 
 	txb->len += read_ret;
-	return 0;
+	res->body.file_off += read_ret;
+	return (res->body.file_off < res->body.file->size) ? -EAGAIN : 0;
 }
 
 static int construct_res_body(struct ais_http_req *req)
@@ -348,6 +349,7 @@ static int construct_res_body(struct ais_http_req *req)
 	switch (res->body.type) {
 	case AIS_RES_BODY_TYPE_BUF:
 		r = ais_buf_append(txb, b->buf.buf, b->buf.len);
+		ais_http_res_body_free(&res->body);
 		break;
 	case AIS_RES_BODY_TYPE_NONE:
 		break;
@@ -359,8 +361,15 @@ static int construct_res_body(struct ais_http_req *req)
 		break;
 	}
 
-	ais_http_res_body_free(&res->body);
 	return r;
+}
+
+static void reset_req(struct ais_http_req *req)
+{
+	gwnet_http_hdr_pctx_free(&req->hdr_pctx);
+	gwnet_http_req_hdr_free(&req->hdr);
+	memset(&req->hdr, 0, sizeof(req->hdr));
+	memset(&req->hdr_pctx, 0, sizeof(req->hdr_pctx));
 }
 
 static int handle_req_state_build_res(struct ais_http_req *req)
@@ -372,25 +381,24 @@ static int handle_req_state_build_res(struct ais_http_req *req)
 		return r;
 
 	r = construct_res_body(req);
-	if (r < 0)
+	if (r < 0 && r != -EAGAIN)
 		return r;
 
+	reset_req(req);
 	req->state = AIS_HREQ_STATE_SEND_RES;
 	return 0;
 }
 
-static void reset_req(struct ais_http_req *req)
-{
-	gwnet_http_hdr_pctx_free(&req->hdr_pctx);
-	gwnet_http_req_hdr_free(&req->hdr);
-	ais_http_res_free(&req->res);
-	memset(&req->hdr, 0, sizeof(req->hdr));
-	memset(&req->hdr_pctx, 0, sizeof(req->hdr_pctx));
-}
-
 static int handle_req_state_send_res(struct ais_http_req *req)
 {
-	reset_req(req);
+	struct ais_http_res *res = &req->res;
+
+	if (res->body.type == AIS_RES_BODY_TYPE_FILE &&
+	    res->body.file_off < res->body.file->size) {
+		return construct_res_body_file(req);
+	}
+
+	ais_http_res_free(&req->res);
 	req->state = AIS_HREQ_STATE_DONE;
 	return 0;
 }

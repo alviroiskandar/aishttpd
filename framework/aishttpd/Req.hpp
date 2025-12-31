@@ -31,6 +31,7 @@ public:
 
 	void showFile(Httpd *h, Req *hr, const std::string &file_path);
 	void redirect(Httpd *h, Req *hr, const std::string &url);
+	void abort(uint16_t code, Httpd *h, Req *hr);
 
 	friend class Httpd;
 };

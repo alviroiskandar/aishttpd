@@ -22,9 +22,11 @@ void Req::showFile(Httpd *h, Req *hr, const std::string &file_path)
 	if (r) {
 		switch (r) {
 		case -ENOENT:
-			throw std::runtime_error("File not found: " + file_path);
+			abort(404, h, hr);
+			return;
 		default:
-			throw std::runtime_error("Failed to set file path: " + file_path);
+			abort(500, h, hr);
+			return;
 		}
 	}
 
@@ -50,6 +52,26 @@ void Req::redirect(Httpd *h, Req *hr, const std::string &url)
 		throw std::bad_alloc();
 
 	r = ais_http_res_body_set_bufl(res, "Redirecting...\n", 15);
+	if (r)
+		throw std::bad_alloc();
+
+	(void)h; // currently unused
+}
+
+void Req::abort(uint16_t code, Httpd *h, Req *hr)
+{
+	const char *reason = ais_http_translate_code(code);
+	struct ais_http_req *req = hr->get_req();
+	struct ais_http_res *res = &req->res;
+	int r = 0;
+
+	ais_http_res_set_code(res, code);
+	r = ais_http_res_add_hdr(res, "Content-Type", "text/plain");
+	if (r)
+		throw std::bad_alloc();
+
+	std::string body = std::to_string(code) + " " + reason + "\n";
+	r = ais_http_res_body_set_bufl(res, body.c_str(), body.length());
 	if (r)
 		throw std::bad_alloc();
 

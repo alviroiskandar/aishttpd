@@ -99,6 +99,7 @@ int ais_http_res_body_set_file(struct ais_http_res *res, struct ais_file *f);
 int ais_http_res_body_set_file_path(struct ais_http_res *res, struct ais_file_table *ftb, const char *path);
 void ais_http_res_body_free(struct ais_http_res_body *b);
 const char *ais_http_get_mime_type(const char *ext);
+const char *ais_http_translate_code(uint16_t code);
 
 static inline struct ais_file_table *ais_http_req_get_file_table(struct ais_http_req *req)
 {

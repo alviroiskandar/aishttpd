@@ -12,11 +12,17 @@
 #include <memory>
 #include <functional>
 
+enum {
+	PREROUTE_MATCH = 0,
+	PREROUTE_SKIP  = 1,
+};
+
 namespace aishttpd {
 
 class Router {
 private:
-	std::string	host_;
+	std::string		host_;
+	std::vector<std::function<int(Httpd *, Req *)>> preroutes_;
 	std::unordered_map<std::string, std::vector<Route>> routes_;
 
 	int invoke(int method, const std::string &path, Httpd *h, Req *r);
@@ -34,6 +40,7 @@ public:
 		return host_;
 	}
 
+	void addPreroute(std::function<int(Httpd *, Req *)> cb);
 	void addRoute(int method, const std::string &path, std::function<int(Httpd *, Req *)> cb);
 
 	friend class Httpd;

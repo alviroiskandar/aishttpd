@@ -24,28 +24,30 @@ void Router::addRoute(int method, const std::string &path,
 
 int Router::invoke(int method, const std::string &path, Httpd *h, Req *r)
 {
-	struct ais_http_req *req = r->get_req();
-	struct ais_http_res *res = &req->res;
+	for (auto &cb : preroutes_) {
+		int ret = cb(h, r);
+		if (ret == PREROUTE_MATCH)
+			return 0;
+	}
 
 	auto it = routes_.find(path);
 	if (it == routes_.end()) {
-		int q = 0;
-		ais_http_res_set_code(res, 404);
-		q |= ais_http_res_add_hdr(res, "Content-Type", "text/plain; charset=utf-8");
-		q |= ais_http_res_body_set_bufl(res, "404 Not Found!\n", 15);
-		return q;
+		r->abort(404, h, r);
+		return 0;
 	}
 
 	auto &rv = it->second;
 	if (rv.size() <= (size_t)method || !rv[method].cb_) {
-		int q = 0;
-		ais_http_res_set_code(res, 405);
-		q |= ais_http_res_add_hdr(res, "Content-Type", "text/plain; charset=utf-8");
-		q |= ais_http_res_body_set_bufl(res, "405 Method Not Allowed!\n", 24);
-		return q;
+		r->abort(405, h, r);
+		return 0;
 	}
 
 	return rv[method].invoke(h, r);
+}
+
+void Router::addPreroute(std::function<int(Httpd *, Req *)> cb)
+{
+	preroutes_.emplace_back(std::move(cb));
 }
 
 } /* namespace aishttpd */

@@ -41,6 +41,7 @@ static void setHttpRouters(Httpd *h)
 			cf_ip,
 			hdr->uri,
 			hdr->qs ? hdr->qs : "");
+		fflush(stdout);
 
 		if (!path || strlen(path) < 2)
 			return PREROUTE_SKIP;

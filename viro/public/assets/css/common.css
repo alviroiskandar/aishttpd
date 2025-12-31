@@ -1,0 +1,133 @@
+/* Reset and Base Styles */
+* {
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0;
+}
+
+body {
+	/* Freezing Night Theme Background */
+	background-color: #050a14; 
+	/* Icy Text Color */
+	color: #dbeeff; 
+	/* Requested Font Family */
+	font-family: Arial, Helvetica, sans-serif;
+	line-height: 1.6;
+	padding: 20px;
+}
+
+/* Container for centering content */
+.container {
+	max-width: 800px;
+	margin: 40px auto;
+	border: 1px solid #1c2e4a;
+	padding: 40px;
+	background: linear-gradient(180deg, #0a1120 0%, #050a14 100%);
+	box-shadow: 0 0 20px rgba(0, 150, 255, 0.05);
+	border-radius: 8px;
+}
+
+/* Typography */
+h1 {
+	font-size: 2.5em;
+	color: #ffffff;
+	margin-bottom: 5px;
+	text-shadow: 0 0 10px rgba(165, 214, 255, 0.3);
+}
+
+h2 {
+	font-size: 1.2em;
+	color: #5eaeff;
+	margin-top: 30px;
+	margin-bottom: 15px;
+	border-bottom: 1px solid #1c2e4a;
+	padding-bottom: 5px;
+}
+
+.tagline {
+	font-size: 1.2em;
+	color: #82aaff;
+	font-style: italic;
+	margin-bottom: 30px;
+	font-weight: lighter;
+}
+
+p {
+	margin-bottom: 15px;
+}
+
+.bio-highlight {
+	font-weight: bold;
+	color: #ffffff;
+}
+
+.thematic-text {
+	color: #9cbacf;
+	border-left: 3px solid #1e3a5f;
+	padding-left: 15px;
+	font-style: italic;
+	margin: 20px 0;
+}
+
+.server-notice {
+	font-size: 0.9em;
+	background-color: #0d1626;
+	padding: 30px;
+	border-radius: 4px;
+	border: 1px solid #1c2e4a;
+}
+
+/* Links */
+a {
+	color: #00bcd4; /* Cyan accent */
+	text-decoration: none;
+	transition: color 0.3s ease;
+}
+
+a:hover {
+	color: #ffffff;
+	text-decoration: underline;
+}
+
+/* Lists */
+ul {
+	list-style: none;
+	margin-left: 10px;
+}
+
+ul li {
+	margin-bottom: 8px;
+}
+
+/* Nested lists for friends */
+.friend-group {
+	margin-bottom: 15px;
+}
+
+.friend-name {
+	font-weight: bold;
+	color: #cce3ff;
+	display: block;
+	margin-bottom: 4px;
+}
+
+.friend-links {
+	margin-left: 20px;
+	font-size: 0.95em;
+}
+
+.friend-links li::before {
+	content: "•";
+	color: #1e3a5f;
+	display: inline-block; 
+	width: 1em;
+	margin-left: -1em;
+}
+
+/* Footer */
+footer {
+	margin-top: 50px;
+	text-align: center;
+	font-size: 0.8em;
+	color: #536c8a;
+}

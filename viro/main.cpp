@@ -10,13 +10,37 @@
 
 using namespace aishttpd;
 
+static const char *gen_date_buf(char *buf)
+{
+	time_t now = time(NULL);
+	struct tm tm;
+
+	gmtime_r(&now, &tm);
+	strftime(buf, 128, "%a, %d %b %Y %H:%M:%S GMT", &tm);
+	return buf;
+}
+
 static void setHttpRouters(Httpd *h)
 {
 	auto r = std::make_shared<Router>("www.freezing-night.com");
 
 	r->addPreroute([](Httpd *h, Req *r) -> int {
-		const char *path = r->get_req()->hdr.uri;
-		std::string file_path = "./public/";
+		struct ais_http_req *req = r->get_req();
+		struct gwnet_http_req_hdr *hdr = &req->hdr;
+		const char *path = hdr->uri;
+		const char *cf_ip = gwnet_http_hdr_fields_get(&hdr->fields, "cf-connecting-ip");
+		char date_buf[128];
+		gen_date_buf(date_buf);
+
+		if (!cf_ip)
+			cf_ip = "none";
+
+		printf("date=%s|ip=%s|cf_ip=%s|uri=%s|qs=%s\n",
+			date_buf,
+			req->addr,
+			cf_ip,
+			hdr->uri,
+			hdr->qs ? hdr->qs : "");
 
 		if (!path || strlen(path) < 2)
 			return PREROUTE_SKIP;
@@ -25,7 +49,8 @@ static void setHttpRouters(Httpd *h)
 		if (strstr(path, "..") != nullptr)
 			return PREROUTE_SKIP;
 
-		file_path += path + 1;
+		std::string file_path = "./public/";
+		file_path += (path + 1);
 		r->showFile(h, r, file_path);
 		return PREROUTE_MATCH;
 	});
